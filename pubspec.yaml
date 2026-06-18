@@ -1,0 +1,44 @@
+name: txeneza_app
+description: "Um novo projeto Flutter."
+# A linha a seguir impede que o pacote seja publicado acidentalmente no pub.dev.
+# Isso é preferível para pacotes privados.
+publish_to: 'none'
+
+# Define a versão e o número de compilação do seu aplicativo.
+# O número da versão consiste em três números separados por pontos, como 1.2.43
+# seguido por um número de compilação opcional separado por um +.
+# Ambos os valores podem ser substituídos na compilação do flutter
+# especificando --build-name e --build-number, respectivamente.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.8.0 <=3.11.3'
+
+# Dependências especificam outros pacotes que seu projeto precisa para funcionar.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Adiciona a fonte Cupertino Icons ao seu aplicativo.
+  # Use com a classe CupertinoIcons para ícones no estilo iOS.
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # O pacote "flutter_lints" contém um conjunto de regras de análise recomendadas
+  # para incentivar boas práticas de programação.
+  flutter_lints: ^6.0.0
+
+# Esta seção é específica para configurações do Flutter.
+flutter:
+  # Garante que a fonte Material Icons seja incluída no seu aplicativo,
+  # permitindo que você use as classes de ícones padrão do Material Design.
+  uses-material-design: true
+
+  # Configuração de assets do aplicativo
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/fonts/
