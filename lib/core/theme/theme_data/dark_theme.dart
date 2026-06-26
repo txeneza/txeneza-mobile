@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../colors/dark_colors.dart';
 import '../typography/text_styles.dart';
 import '../spacing/app_radius.dart';
@@ -25,15 +26,17 @@ ThemeData get darkTheme {
       elevation: 0,
       centerTitle: true,
     ),
-    textTheme: const TextTheme(
-      headlineLarge: TextStyles.titleLarge,
-      headlineMedium: TextStyles.titleMedium,
-      titleLarge: TextStyles.subtitleLarge,
-      titleMedium: TextStyles.subtitleMedium,
-      bodyLarge: TextStyles.body,
-      bodyMedium: TextStyles.body,
-      labelLarge: TextStyles.captionLarge,
-      labelSmall: TextStyles.captionSmall,
+    textTheme: GoogleFonts.geistTextTheme(
+      const TextTheme(
+        headlineLarge: TextStyles.titleLarge,
+        headlineMedium: TextStyles.titleMedium,
+        titleLarge: TextStyles.subtitleLarge,
+        titleMedium: TextStyles.subtitleMedium,
+        bodyLarge: TextStyles.body,
+        bodyMedium: TextStyles.body,
+        labelLarge: TextStyles.captionLarge,
+        labelSmall: TextStyles.captionSmall,
+      ),
     ),
     cardTheme: CardThemeData(
       color: DarkColors.surface,
@@ -81,7 +84,7 @@ ThemeData get darkTheme {
         shape: const RoundedRectangleBorder(
           borderRadius: AppRadius.borderMD,
         ),
-        textStyle: TextStyles.bodyBold,
+        textStyle: GoogleFonts.geist(textStyle: TextStyles.bodyBold),
       ),
     ),
   );

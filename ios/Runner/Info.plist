@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Precisamos de acesso à câmara para fotografar os pontos de lixo.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Precisamos de acesso à sua localização para marcar no mapa onde está o lixo.</string>
 </dict>
 </plist>

@@ -28,4 +28,7 @@ class AppIcons {
   // Specific features
   static const IconData report = Icons.campaign;
   static const IconData sync = Icons.sync;
+
+  // Brand
+  static const String logo = 'assets/icons/TXENEZA.svg';
 }
