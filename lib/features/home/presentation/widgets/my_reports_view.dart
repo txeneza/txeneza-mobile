@@ -7,10 +7,12 @@ import '../../../map/domain/occurrence_model.dart';
 
 class MyReportsView extends StatefulWidget {
   final List<Occurrence> occurrences;
+  final double topPadding;
 
   const MyReportsView({
     super.key,
     required this.occurrences,
+    this.topPadding = 0.0,
   });
 
   @override
@@ -44,6 +46,7 @@ class _MyReportsViewState extends State<MyReportsView> {
 
     return Column(
       children: [
+        if (widget.topPadding > 0) SizedBox(height: widget.topPadding),
         // Search & Filter Header
         Container(
           padding: const EdgeInsets.all(AppSpacing.md),

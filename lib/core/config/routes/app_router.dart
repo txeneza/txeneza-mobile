@@ -3,6 +3,7 @@ import 'app_routes.dart';
 import '../../../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../../../features/onboarding/presentation/pages/permission.dart';
 import '../../../../features/home/presentation/pages/home_screen.dart';
+import '../../../../features/chatIA/presentation/pages/chat_ia_screen.dart';
 
 class AppRouter {
   AppRouter._();
@@ -30,6 +31,11 @@ class AppRouter {
             );
           },
           transitionDuration: const Duration(milliseconds: 500),
+        );
+      case AppRoutes.chatIA:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const ChatIAScreen(),
         );
       default:
         return MaterialPageRoute(

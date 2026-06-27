@@ -10,4 +10,7 @@ class AppEnv {
 
   static bool get debugMode =>
       dotenv.get('DEBUG_MODE', fallback: 'true').toLowerCase() == 'true';
+
+  static String get geminiApiKey =>
+      dotenv.get('GEMINI_API_KEY', fallback: '');
 }

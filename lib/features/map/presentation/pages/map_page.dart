@@ -42,6 +42,11 @@ class MapPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final appBarHeight = 72.0;
+    final offlineBannerHeight = isOnline ? 0.0 : 48.0;
+    final topOffset = statusBarHeight + appBarHeight + offlineBannerHeight + 12.0;
 
     return Column(
       children: [
@@ -63,7 +68,7 @@ class MapPage extends StatelessWidget {
 
               // Floating Toggle (Mapa vs Calor)
               Positioned(
-                top: 16,
+                top: topOffset,
                 right: 16,
                 child: PillToggle(
                   mapMode: mapMode,

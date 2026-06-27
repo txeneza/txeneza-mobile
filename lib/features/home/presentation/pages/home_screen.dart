@@ -11,7 +11,7 @@ import '../../../../shared/widgets/layout/app_bar.dart';
 import '../../../map/domain/occurrence_model.dart';
 import '../../../map/presentation/pages/map_page.dart';
 import '../../../map/presentation/widgets/txeneza_map.dart' show MapMode;
-import '../widgets/ai_assistant_view.dart';
+import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../widgets/my_reports_view.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -189,34 +189,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // Smooth map centering animation
   void _animateMapTo(LatLng target, double targetZoom) {
-    final double startZoom = _mapController.camera.zoom;
-    final LatLng startCenter = _mapController.camera.center;
+    try {
+      final double startZoom = _mapController.camera.zoom;
+      final LatLng startCenter = _mapController.camera.center;
 
-    final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
-    final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
-    final zoomTween = Tween<double>(begin: startZoom, end: targetZoom);
+      final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
+      final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
+      final zoomTween = Tween<double>(begin: startZoom, end: targetZoom);
 
-    final AnimationController controller = AnimationController(
-      duration: const Duration(milliseconds: 900),
-      vsync: this,
-    );
-
-    final Animation<double> animation = CurvedAnimation(
-      parent: controller,
-      curve: Curves.easeInOutCubic,
-    );
-
-    controller.addListener(() {
-      _mapController.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        zoomTween.evaluate(animation),
+      final AnimationController controller = AnimationController(
+        duration: const Duration(milliseconds: 900),
+        vsync: this,
       );
-      setState(() {
-        _currentScale = zoomTween.evaluate(animation);
-      });
-    });
 
-    controller.forward().then((_) => controller.dispose());
+      final Animation<double> animation = CurvedAnimation(
+        parent: controller,
+        curve: Curves.easeInOutCubic,
+      );
+
+      controller.addListener(() {
+        if (!mounted) return;
+        try {
+          _mapController.move(
+            LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
+            zoomTween.evaluate(animation),
+          );
+          setState(() {
+            _currentScale = zoomTween.evaluate(animation);
+          });
+        } catch (e) {
+          debugPrint('Failed to move map: $e');
+          controller.stop();
+        }
+      });
+
+      controller.forward().then((_) {
+        if (mounted) {
+          controller.dispose();
+        }
+      });
+    } catch (e) {
+      debugPrint('MapController is not ready yet: $e');
+    }
   }
 
   void _onLocationPressed() {
@@ -303,77 +317,108 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       child: Scaffold(
         backgroundColor: isDark ? AppColors.black : const Color(0xFFF4F2EB),
-        appBar: TxenezaAppBar(
-          isOnline: _isOnline,
-          onConnectivityTap: _toggleConnectivityManually,
-        ),
-        body: Column(
+        body: Stack(
           children: [
-            // Discrete Offline Warning Banner
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              height: _isOnline ? 0 : 36,
-              color: const Color(0xFFFFB300),
-              child: const ClipRect(
-                child: Align(
-                  alignment: Alignment.center,
-                  widthFactor: 1.0,
-                  heightFactor: 1.0,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            // Tab Pages Container
+            Column(
+              children: [
+                Expanded(
+                  child: IndexedStack(
+                    index: (_selectedBottomIndex == 0 || _selectedBottomIndex == 1) ? 0 : (_selectedBottomIndex - 1),
                     children: [
-                      Icon(
-                        LucideIcons.wifiOff,
-                        color: AppColors.forestGreen,
-                        size: 14,
+                      MapPage(
+                        mapMode: _mapMode,
+                        occurrences: _occurrences,
+                        isOnline: _isOnline,
+                        mapController: _mapController,
+                        currentScale: _currentScale,
+                        userLocation: _userLocation,
+                        isResolvingGps: _isResolvingGps,
+                        onScaleChanged: (scale) {
+                          setState(() {
+                            _currentScale = scale;
+                          });
+                        },
+                        onMapModeToggled: _onMapModeToggled,
+                        onLocationPressed: _onLocationPressed,
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'Modo Offline. Pontos salvos na última sincronização.',
-                        style: TextStyle(
-                          fontFamily: 'Geist',
-                          color: AppColors.forestGreen,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+
+                      // Tab 2: AI Assistant View
+                      const ChatIAScreen(),
+
+                      // Tab 3: My Reports View
+                      MyReportsView(
+                        occurrences: _allOccurrences,
+                        topPadding: MediaQuery.of(context).padding.top + 72.0 + (_isOnline ? 0.0 : 44.0),
                       ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
 
-            // Tab Pages Container
-            Expanded(
-              child: IndexedStack(
-                index: (_selectedBottomIndex == 0 || _selectedBottomIndex == 1) ? 0 : (_selectedBottomIndex - 1),
-                children: [
-                  MapPage(
-                    mapMode: _mapMode,
-                    occurrences: _occurrences,
-                    isOnline: _isOnline,
-                    mapController: _mapController,
-                    currentScale: _currentScale,
-                    userLocation: _userLocation,
-                    isResolvingGps: _isResolvingGps,
-                    onScaleChanged: (scale) {
-                      setState(() {
-                        _currentScale = scale;
-                      });
-                    },
-                    onMapModeToggled: _onMapModeToggled,
-                    onLocationPressed: _onLocationPressed,
+            // Custom Floating Glassmorphic App Bar
+            if (_selectedBottomIndex != 2)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: TxenezaAppBar(
+                  isOnline: _isOnline,
+                  onConnectivityTap: _toggleConnectivityManually,
+                ),
+              ),
+
+            // Discrete Floating Offline Warning Banner
+            if (!_isOnline && _selectedBottomIndex != 2)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 76.0,
+                left: 16,
+                right: 16,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFB300),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-
-                  // Tab 2: AI Assistant View
-                  const AIAssistantView(),
-
-                  // Tab 3: My Reports View
-                  MyReportsView(occurrences: _allOccurrences),
-                ],
+                  child: const ClipRect(
+                    child: Align(
+                      alignment: Alignment.center,
+                      widthFactor: 1.0,
+                      heightFactor: 1.0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            LucideIcons.wifiOff,
+                            color: AppColors.forestGreen,
+                            size: 14,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Modo Offline. Pontos salvos na última sincronização.',
+                            style: TextStyle(
+                              fontFamily: 'Geist',
+                              color: AppColors.forestGreen,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
           ],
         ),
 
