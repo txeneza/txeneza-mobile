@@ -12,7 +12,7 @@ import '../../../map/domain/occurrence_model.dart';
 import '../../../map/presentation/pages/map_page.dart';
 import '../../../map/presentation/widgets/txeneza_map.dart' show MapMode;
 import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
-import '../widgets/my_reports_view.dart';
+import '../../../profile/presentation/pages/profile_page.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -347,11 +347,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       // Tab 2: AI Assistant View
                       const ChatIAScreen(),
 
-                      // Tab 3: My Reports View
-                      MyReportsView(
-                        occurrences: _allOccurrences,
-                        topPadding: MediaQuery.of(context).padding.top + 72.0 + (_isOnline ? 0.0 : 44.0),
-                      ),
+                      // Tab 3: Profile View
+                      const ProfilePage(),
                     ],
                   ),
                 ),
@@ -359,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
 
             // Custom Floating Glassmorphic App Bar
-            if (_selectedBottomIndex != 2)
+            if (_selectedBottomIndex != 2 && _selectedBottomIndex != 3)
               Positioned(
                 top: 0,
                 left: 0,
@@ -371,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
 
             // Discrete Floating Offline Warning Banner
-            if (!_isOnline && _selectedBottomIndex != 2)
+            if (!_isOnline && _selectedBottomIndex != 2 && _selectedBottomIndex != 3)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 76.0,
                 left: 16,
@@ -508,8 +505,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               label: 'Assistente IA',
             ),
             FloatingNavigationDestination(
-              icon: LucideIcons.fileSpreadsheet,
-              label: 'Minhas Denúncias',
+              icon: LucideIcons.user,
+              label: 'Perfil',
             ),
           ],
         ),

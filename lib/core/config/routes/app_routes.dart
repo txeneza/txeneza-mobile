@@ -7,4 +7,13 @@ class AppRoutes {
   static const String signUp = '/signup';
   static const String home = '/home';
   static const String chatIA = '/chat-ia';
+
+  // Profile Sub-pages
+  static const String changePassword = '/profile/change-password';
+  static const String privacyPolicy = '/profile/privacy-policy';
+  static const String termsOfUse = '/profile/terms-of-use';
+  static const String helpFaq = '/profile/help-faq';
+  static const String reportProblem = '/profile/report-problem';
+  static const String contact = '/profile/contact';
+  static const String myReports = '/my-reports';
 }
