@@ -30,7 +30,16 @@ class _AppState extends State<App> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isFirstTime = prefs.getBool('is_first_time') ?? true;
-      return isFirstTime ? AppRoutes.onboarding : AppRoutes.home;
+      if (isFirstTime) {
+        return AppRoutes.onboarding;
+      }
+      
+      final sessionJson = prefs.getString('mock_user_session');
+      if (sessionJson == null) {
+        return AppRoutes.login;
+      }
+      
+      return AppRoutes.home;
     } catch (e) {
       return AppRoutes.onboarding;
     }

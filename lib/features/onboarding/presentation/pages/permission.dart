@@ -112,7 +112,7 @@ class _PermissionPageState extends State<PermissionPage> {
     await prefs.setBool('is_first_time', false);
     
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      Navigator.of(context).pushReplacementNamed(AppRoutes.login);
     }
   }
 

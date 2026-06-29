@@ -13,6 +13,7 @@ import '../../../map/presentation/pages/map_page.dart';
 import '../../../map/presentation/widgets/txeneza_map.dart' show MapMode;
 import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../widgets/my_reports_view.dart';
+import '../widgets/floating_bottom_navigation_bar.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -489,62 +490,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               )
             : null,
 
-        // Custom Bottom Navigation Bar
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            boxShadow: [
-              BoxShadow(
-                color: isDark ? Colors.black54 : Colors.black12,
-                blurRadius: 10,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: NavigationBarTheme(
-            data: NavigationBarThemeData(
-              indicatorColor: AppColors.forestGreen.withValues(alpha: 0.1),
-              labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                final isSelected = states.contains(WidgetState.selected);
-                return TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                  color: isSelected ? AppColors.forestGreen : AppColors.grey600,
-                );
-              }),
-              iconTheme: WidgetStateProperty.resolveWith((states) {
-                final isSelected = states.contains(WidgetState.selected);
-                return IconThemeData(
-                  color: isSelected ? AppColors.forestGreen : AppColors.grey600,
-                  size: 20,
-                );
-              }),
+        // Custom Floating Bottom Navigation Bar
+        bottomNavigationBar: FloatingBottomNavigationBar(
+          selectedIndex: _selectedBottomIndex,
+          onDestinationSelected: _onTabTapped,
+          destinations: const [
+            FloatingNavigationDestination(
+              icon: LucideIcons.map,
+              label: 'Início',
             ),
-            child: NavigationBar(
-              backgroundColor: isDark ? AppColors.grey900 : Colors.white,
-              selectedIndex: _selectedBottomIndex,
-              onDestinationSelected: _onTabTapped,
-              height: 64,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(LucideIcons.map),
-                  label: 'Início',
-                ),
-                NavigationDestination(
-                  icon: Icon(LucideIcons.flame),
-                  label: 'Mapa Calor',
-                ),
-                NavigationDestination(
-                  icon: Icon(LucideIcons.sparkles),
-                  label: 'Assistente IA',
-                ),
-                NavigationDestination(
-                  icon: Icon(LucideIcons.fileSpreadsheet),
-                  label: 'Minhas Denúncias',
-                ),
-              ],
+            FloatingNavigationDestination(
+              icon: LucideIcons.flame,
+              label: 'Mapa Calor',
             ),
-          ),
+            FloatingNavigationDestination(
+              icon: LucideIcons.sparkles,
+              label: 'Assistente IA',
+            ),
+            FloatingNavigationDestination(
+              icon: LucideIcons.fileSpreadsheet,
+              label: 'Minhas Denúncias',
+            ),
+          ],
         ),
       ),
     );

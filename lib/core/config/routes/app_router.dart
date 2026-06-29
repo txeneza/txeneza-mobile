@@ -4,6 +4,8 @@ import '../../../../features/onboarding/presentation/pages/onboarding_page.dart'
 import '../../../../features/onboarding/presentation/pages/permission.dart';
 import '../../../../features/home/presentation/pages/home_screen.dart';
 import '../../../../features/chatIA/presentation/pages/chat_ia_screen.dart';
+import '../../../../features/auth/presentation/pages/login_page.dart';
+import '../../../../features/auth/presentation/pages/signup_page.dart';
 
 class AppRouter {
   AppRouter._();
@@ -19,6 +21,16 @@ class AppRouter {
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => const PermissionPage(),
+        );
+      case AppRoutes.login:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const LoginPage(),
+        );
+      case AppRoutes.signUp:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const SignUpPage(),
         );
       case AppRoutes.home:
         return PageRouteBuilder(
