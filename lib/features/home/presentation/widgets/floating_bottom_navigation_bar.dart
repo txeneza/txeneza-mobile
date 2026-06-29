@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 
 class FloatingNavigationDestination {
@@ -54,7 +55,7 @@ class FloatingBottomNavigationBar extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
               decoration: BoxDecoration(
-                color: (isDark ? const Color(0xFF1E2F2C) : Colors.white).withValues(alpha: 0.85),
+                color: (isDark ? DarkColors.surface : Colors.white).withValues(alpha: 0.85),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
                   color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
@@ -67,8 +68,8 @@ class FloatingBottomNavigationBar extends StatelessWidget {
                   final destination = destinations[index];
                   final isSelected = index == selectedIndex;
                   
-                  // Active: Vibrant Orange. Inactive: Grey/Neutral
-                  final activeColor = const Color(0xFFFB8C00); 
+                  // Active: Theme Primary. Inactive: Grey/Neutral
+                  final activeColor = theme.colorScheme.primary; 
                   final inactiveColor = isDark ? AppColors.grey300 : AppColors.grey600;
 
                   return Expanded(
