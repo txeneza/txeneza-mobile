@@ -5,6 +5,7 @@ class AppRoutes {
   static const String permission = '/permission';
   static const String login = '/login';
   static const String signUp = '/signup';
+  static const String completeProfile = '/completar-perfil';
   static const String home = '/home';
   static const String chatIA = '/chat-ia';
 

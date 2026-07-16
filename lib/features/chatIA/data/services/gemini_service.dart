@@ -2,101 +2,154 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/config/env/app_env.dart';
+import '../xeni_prompt.dart';
+
+/// Um turno da conversa, usado para dar contexto ao modelo.
+class ChatTurn {
+  final String text;
+  final bool isUser;
+  const ChatTurn({required this.text, required this.isUser});
+}
 
 class GeminiService {
-  Future<String> sendMessage(String message) async {
-    final apiKey = AppEnv.geminiApiKey;
-    if (apiKey.isEmpty) {
-      return 'Erro: Chave da API do Gemini não configurada no arquivo .env.';
-    }
+  static const List<String> _models = [
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+  ];
+  static const int _maxRetries = 2;
 
-    final models = [
-      'gemini-2.5-flash',
-      'gemini-2.5-flash-lite',
+  /// Mensagem de texto para a Xeni, com o system prompt e o histórico recente
+  /// para manter o contexto da conversa.
+  Future<String> sendMessage(
+    String message, {
+    List<ChatTurn> history = const [],
+  }) async {
+    final contents = <Map<String, dynamic>>[
+      for (final turn in history)
+        {
+          'role': turn.isUser ? 'user' : 'model',
+          'parts': [
+            {'text': turn.text}
+          ],
+        },
+      {
+        'role': 'user',
+        'parts': [
+          {'text': message}
+        ],
+      },
     ];
 
-    const maxRetries = 2; // Retries per model
+    return _generate(contents);
+  }
 
-    for (final model in models) {
+  /// Classificação multimodal de uma imagem de resíduo (texto + imagem).
+  /// [imageBytes] é o conteúdo do ficheiro; [mimeType] ex.: 'image/jpeg'.
+  Future<String> classifyImage(
+    Uint8List imageBytes, {
+    String mimeType = 'image/jpeg',
+    String? hint,
+  }) async {
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'inline_data': {
+              'mime_type': mimeType,
+              'data': base64Encode(imageBytes),
+            }
+          },
+          {
+            'text': hint?.trim().isNotEmpty == true
+                ? 'Classifica o resíduo nesta fotografia. Contexto: $hint'
+                : 'Classifica o resíduo nesta fotografia.'
+          },
+        ],
+      },
+    ];
+
+    return _generate(contents);
+  }
+
+  /// Núcleo da chamada à API, com system prompt, fallback de modelos e retry.
+  Future<String> _generate(List<Map<String, dynamic>> contents) async {
+    final apiKey = AppEnv.geminiApiKey;
+    if (apiKey.isEmpty) {
+      return 'A chave da API do Gemini não está configurada.';
+    }
+
+    final body = jsonEncode({
+      'system_instruction': {
+        'parts': [
+          {'text': kXeniSystemPrompt}
+        ]
+      },
+      'contents': contents,
+      'generationConfig': {
+        // Temperatura baixa: respostas mais focadas e menos genéricas.
+        'temperature': 0.4,
+        'maxOutputTokens': 800,
+      },
+    });
+
+    for (final model in _models) {
       int attempt = 0;
-      while (attempt <= maxRetries) {
+      while (attempt <= _maxRetries) {
         final url = Uri.parse(
           'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey',
         );
-
         try {
-          final body = {
-            'contents': [
-              {
-                'parts': [
-                  {'text': message}
-                ]
-              }
-            ]
-          };
-
           final response = await http.post(
             url,
             headers: {'content-type': 'application/json'},
-            body: jsonEncode(body),
+            body: body,
           );
 
           if (response.statusCode == 200) {
-            final jsonResponse = jsonDecode(response.body);
-            
-            final candidates = jsonResponse['candidates'] as List?;
-            if (candidates != null && candidates.isNotEmpty) {
-              final content = candidates[0]['content'] as Map?;
-              if (content != null) {
-                final parts = content['parts'] as List?;
-                if (parts != null && parts.isNotEmpty) {
-                  final text = parts[0]['text'] as String?;
-                  if (text != null) {
-                    return text.trim();
-                  }
-                }
-              }
-            }
-            return 'Resposta vazia ou formato de resposta inesperado.';
+            return _extractText(response.body);
           } else if (response.statusCode == 503) {
             attempt++;
-            if (attempt <= maxRetries) {
-              final waitSeconds = attempt * 2;
-              debugPrint('Servidor ocupado (503) no modelo $model. Tentativa $attempt de $maxRetries. Aguardando ${waitSeconds}s...');
-              await Future.delayed(Duration(seconds: waitSeconds));
+            if (attempt <= _maxRetries) {
+              await Future.delayed(Duration(seconds: attempt * 2));
               continue;
             }
-            debugPrint('Falha ao usar o modelo $model após $maxRetries tentativas.');
+            debugPrint('Modelo $model ocupado após $_maxRetries tentativas.');
+          } else if (response.statusCode == 400 || response.statusCode == 403) {
+            // Chave inválida/sem permissão: tentar outro modelo não ajuda.
+            debugPrint('Gemini rejeitou o pedido '
+                '(${response.statusCode}): ${response.body}');
+            return 'A chave da API do Gemini é inválida ou não tem acesso. '
+                'Verifique a GEMINI_API_KEY no ficheiro .env.';
           } else {
-            return 'Erro da API Gemini (${response.statusCode}): ${response.body}';
+            debugPrint('Erro Gemini (${response.statusCode}): ${response.body}');
+            break; // tenta o próximo modelo
           }
         } catch (e) {
           attempt++;
-          if (attempt <= maxRetries) {
+          if (attempt <= _maxRetries) {
             await Future.delayed(Duration(seconds: attempt * 2));
             continue;
           }
-          debugPrint('Erro de conexão com o modelo $model: $e');
+          debugPrint('Erro de ligação ao modelo $model: $e');
         }
       }
     }
 
-    return 'Erro: O serviço do Gemini está indisponível no momento devido à alta demanda. Por favor, tente novamente em instantes.';
+    return 'O serviço da Xeni está indisponível de momento. Tente novamente daqui a instantes.';
   }
 
-  /// Método auxiliar para simular a classificação de imagem online via Gemini
-  Future<String> analyzeSimulatedImage(String imageName, String imageDescription) async {
-    final prompt = '''
-Você é a Xeni, assistente de IA da Txeneza.
-O usuário enviou uma foto de uma ocorrência de saneamento/lixo chamada "$imageName" descrita como: "$imageDescription".
-Com base nas diretrizes de limpeza e reciclagem da cidade da Beira:
-1. Classifique a gravidade da situação (Baixa, Média, Alta ou Crítica).
-2. Explique brevemente o tipo de resíduo identificado e o perigo potencial.
-3. Descreva a ação recomendada para a Txeneza (ex: direcionar para coleta orgânica, acionar voluntários, encaminhar à edilidade).
-4. Informe que um boletim de ocorrência foi pré-estruturado.
-
-Responda em formato executivo, profissional, porém amigável, adequado para uma aplicação de gestão urbana Premium Enterprise.
-''';
-    return sendMessage(prompt);
+  String _extractText(String responseBody) {
+    final json = jsonDecode(responseBody);
+    final candidates = json['candidates'] as List?;
+    if (candidates != null && candidates.isNotEmpty) {
+      final content = candidates[0]['content'] as Map?;
+      final parts = content?['parts'] as List?;
+      if (parts != null && parts.isNotEmpty) {
+        final text = parts[0]['text'] as String?;
+        if (text != null) return text.trim();
+      }
+    }
+    return 'Não consegui gerar uma resposta. Tente reformular a pergunta.';
   }
 }

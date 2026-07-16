@@ -8,6 +8,7 @@ import 'core/theme/colors/app_colors.dart';
 
 import 'core/config/routes/app_routes.dart';
 import 'core/config/routes/app_router.dart';
+import 'features/auth/data/datasources/profile_completion_service.dart';
 
 final themeProvider = ThemeProvider();
 
@@ -36,7 +37,12 @@ class _AppState extends State<App> {
       }
 
       final hasSession = Supabase.instance.client.auth.currentSession != null;
-      return hasSession ? AppRoutes.home : AppRoutes.login;
+      if (!hasSession) return AppRoutes.login;
+
+      // Contas sem bairro real (típico do login Google) têm de o definir antes
+      // de entrar: as denúncias dependem do bairro para encaminhamento.
+      final needsCompletion = await ProfileCompletionService().needsCompletion();
+      return needsCompletion ? AppRoutes.completeProfile : AppRoutes.home;
     } catch (e) {
       return AppRoutes.onboarding;
     }

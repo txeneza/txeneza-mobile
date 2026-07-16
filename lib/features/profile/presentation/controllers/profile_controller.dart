@@ -8,26 +8,6 @@ class ProfileController extends ChangeNotifier {
   ProfileState _state = const ProfileInitial();
   ProfileState get state => _state;
 
-  // Configurações locais (mock)
-  bool _pushNotifications = true;
-  bool get pushNotifications => _pushNotifications;
-
-  bool _emailNotifications = false;
-  bool get emailNotifications => _emailNotifications;
-
-  bool _offlineSync = true;
-  bool get offlineSync => _offlineSync;
-
-  String _language = 'Português (MZ)';
-  String get language => _language;
-
-  // Permissões mockup
-  bool _locationPermission = true;
-  bool get locationPermission => _locationPermission;
-
-  bool _cameraPermission = false;
-  bool get cameraPermission => _cameraPermission;
-
   ProfileController({
     required ProfileRepository repository,
   }) : _repository = repository;
@@ -38,7 +18,8 @@ class ProfileController extends ChangeNotifier {
 
     try {
       final profile = await _repository.getProfile();
-      _state = ProfileLoaded(profile);
+      final stats = await _repository.getStats();
+      _state = ProfileLoaded(profile, stats);
     } catch (e) {
       _state = ProfileError(e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -55,55 +36,28 @@ class ProfileController extends ChangeNotifier {
     if (currentState is! ProfileLoaded) return false;
 
     final currentProfile = currentState.profile;
+    final stats = currentState.stats;
     final updatedProfile = currentProfile.copyWith(
       fullName: fullName.trim(),
       phoneNumber: phoneNumber.trim().replaceAll(' ', ''),
       neighborhood: neighborhood.trim(),
     );
 
-    _state = ProfileUpdating(currentProfile);
+    _state = ProfileUpdating(currentProfile, stats);
     notifyListeners();
 
     try {
       await _repository.updateProfile(updatedProfile);
-      _state = ProfileLoaded(updatedProfile);
+      _state = ProfileLoaded(updatedProfile, stats);
       notifyListeners();
       return true;
     } catch (e) {
-      _state = ProfileLoaded(currentProfile); // Reverte para o perfil anterior
+      _state = ProfileLoaded(currentProfile, stats); // Reverte
       notifyListeners();
       return false;
     }
   }
 
-  // Setters para configurações mockup
-  void setPushNotifications(bool value) {
-    _pushNotifications = value;
-    notifyListeners();
-  }
-
-  void setEmailNotifications(bool value) {
-    _emailNotifications = value;
-    notifyListeners();
-  }
-
-  void setOfflineSync(bool value) {
-    _offlineSync = value;
-    notifyListeners();
-  }
-
-  void setLanguage(String lang) {
-    _language = lang;
-    notifyListeners();
-  }
-
-  void setLocationPermission(bool value) {
-    _locationPermission = value;
-    notifyListeners();
-  }
-
-  void setCameraPermission(bool value) {
-    _cameraPermission = value;
-    notifyListeners();
-  }
+  /// Apaga a conta permanentemente. Lança em caso de erro para a UI tratar.
+  Future<void> deleteAccount() => _repository.deleteAccount();
 }

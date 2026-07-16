@@ -7,6 +7,7 @@ import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/colors/light_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/profile_completion_service.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
@@ -58,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
 
   void _onStateChanged() {
     if (!mounted) return;
-    
+
     final state = _controller.state;
     if (state is AuthSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      _goToNextScreen();
     } else if (state is AuthError) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -78,6 +79,16 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
     }
+  }
+
+  /// Contas sem bairro real (login Google, ou perfis antigos) passam primeiro
+  /// pelo ecrã de completar perfil em vez de irem direitas ao mapa.
+  Future<void> _goToNextScreen() async {
+    final needsCompletion = await ProfileCompletionService().needsCompletion();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      needsCompletion ? AppRoutes.completeProfile : AppRoutes.home,
+    );
   }
 
   String? _validateEmail(String? value) {

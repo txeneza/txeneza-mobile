@@ -3,13 +3,16 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../../core/config/env/app_env.dart';
 import '../../domain/occurrence_model.dart';
+import '../../domain/ponto_recolha_model.dart';
 import 'occurrence_marker_widget.dart';
+import 'ponto_recolha_marker.dart';
 
 enum MapMode { normal, satellite, heatmap }
 
 class TxenezaMap extends StatefulWidget {
   final MapMode mapMode;
   final List<Occurrence> occurrences;
+  final List<PontoRecolha> pontosRecolha;
   final bool showClusters;
   final double currentScale; // Used as current zoom level
   final MapController mapController;
@@ -21,6 +24,7 @@ class TxenezaMap extends StatefulWidget {
     super.key,
     required this.mapMode,
     required this.occurrences,
+    this.pontosRecolha = const [],
     required this.showClusters,
     required this.currentScale,
     required this.mapController,
@@ -133,6 +137,23 @@ class _TxenezaMapState extends State<TxenezaMap> with TickerProviderStateMixin {
 
         // Layer 3: Markers & Clusters (Only active in non-heatmap modes)
         if (widget.mapMode != MapMode.heatmap) ...[
+          // Pontos de recolha oficiais (geridos pelo painel admin web).
+          // Vêm antes das ocorrências para ficarem por baixo destas: uma
+          // denúncia é mais urgente do que a infraestrutura.
+          if (widget.pontosRecolha.isNotEmpty)
+            MarkerLayer(
+              markers: widget.pontosRecolha.map((ponto) {
+                return Marker(
+                  point: ponto.position,
+                  width: 34,
+                  height: 34,
+                  child: PontoRecolhaMarker(
+                    onTap: () => showPontoRecolhaDetails(context, ponto),
+                  ),
+                );
+              }).toList(),
+            ),
+
           // Occurrence Markers
           MarkerLayer(
             markers: _buildMarkers(),

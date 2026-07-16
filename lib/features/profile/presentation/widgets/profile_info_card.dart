@@ -29,12 +29,19 @@ class _ProfileInfoCardState extends State<ProfileInfoCard> {
   late final TextEditingController _phoneController;
   String? _selectedNeighborhood;
 
+  /// O DropdownButton exige que o valor seleccionado exista exactamente uma vez
+  /// entre as opções. Contas criadas via Google (ou sem metadados) chegam com
+  /// bairro 'Não definido', que não é um bairro real da lista — nesse caso fica
+  /// por escolher, e o validator obriga o utilizador a seleccionar um.
+  String? _neighborhoodOrNull(String? bairro) =>
+      BeiraNeighborhoods.list.contains(bairro) ? bairro : null;
+
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.profile.fullName);
     _phoneController = TextEditingController(text: widget.profile.phoneNumber);
-    _selectedNeighborhood = widget.profile.neighborhood;
+    _selectedNeighborhood = _neighborhoodOrNull(widget.profile.neighborhood);
   }
 
   @override
@@ -43,7 +50,7 @@ class _ProfileInfoCardState extends State<ProfileInfoCard> {
     if (widget.profile != oldWidget.profile) {
       _nameController.text = widget.profile.fullName;
       _phoneController.text = widget.profile.phoneNumber;
-      _selectedNeighborhood = widget.profile.neighborhood;
+      _selectedNeighborhood = _neighborhoodOrNull(widget.profile.neighborhood);
     }
   }
 

@@ -8,13 +8,9 @@ import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../data/repositories/profile_repository_impl.dart';
 import '../controllers/profile_controller.dart';
 import '../controllers/profile_state.dart';
-import '../widgets/ai_chat_bottom_sheet.dart';
-import '../widgets/profile_gamification_card.dart';
 import '../widgets/profile_header.dart';
 import '../widgets/profile_info_card.dart';
-import '../widgets/profile_privacy_section.dart';
 import '../widgets/profile_quick_access.dart';
-import '../widgets/profile_settings_section.dart';
 import '../widgets/profile_stats_grid.dart';
 import '../widgets/profile_support_section.dart';
 
@@ -41,133 +37,129 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  void _showLogoutDialog(bool isDark) {
-    showDialog(
+  Future<void> _confirmLogout(bool isDark) async {
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: isDark ? DarkColors.surface : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(
-            'Terminar Sessão',
-            style: TextStyle(
-              fontFamily: 'Geist',
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : AppColors.forestGreen,
-            ),
-          ),
-          content: Text(
-            'Tem a certeza que deseja sair da sua conta?',
-            style: TextStyle(
-              fontFamily: 'Geist',
-              color: isDark ? Colors.white70 : AppColors.grey800,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancelar',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  color: isDark ? Colors.white38 : AppColors.grey600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await Supabase.instance.client.auth.signOut();
-                if (mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                    AppRoutes.login,
-                    (route) => false,
-                  );
-                }
-              },
-              child: const Text(
-                'Sair',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (ctx) => _confirmDialog(
+        ctx,
+        isDark: isDark,
+        title: 'Terminar Sessão',
+        message: 'Tem a certeza que deseja sair da sua conta?',
+        confirmLabel: 'Sair',
+        confirmColor: AppColors.error,
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    await Supabase.instance.client.auth.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AppRoutes.login,
+      (route) => false,
     );
   }
 
-  void _showDeleteAccountDialog(bool isDark) {
+  Future<void> _confirmDeleteAccount(bool isDark) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _confirmDialog(
+        ctx,
+        isDark: isDark,
+        title: 'Eliminar Conta',
+        message: 'Esta ação é irreversível. A sua conta e todas as suas '
+            'denúncias serão apagadas permanentemente. Deseja continuar?',
+        confirmLabel: 'Eliminar definitivamente',
+        confirmColor: AppColors.error,
+        titleColor: AppColors.error,
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    _showBlockingLoader();
+    try {
+      await _controller.deleteAccount();
+      if (!mounted) return;
+      Navigator.of(context).pop(); // fecha o loader
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.login,
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // fecha o loader
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Não foi possível eliminar a conta. Tente novamente.',
+            style: const TextStyle(fontFamily: 'Geist'),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _showBlockingLoader() {
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: isDark ? DarkColors.surface : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
-            'Eliminar Conta',
-            style: TextStyle(
-              fontFamily: 'Geist',
-              fontWeight: FontWeight.w700,
-              color: AppColors.error,
-            ),
-          ),
-          content: Text(
-            'Aviso: Esta ação é irreversível e apagará permanentemente todos os seus dados. Deseja prosseguir?',
-            style: TextStyle(
-              fontFamily: 'Geist',
-              color: isDark ? Colors.white70 : AppColors.grey800,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(
-                'Cancelar',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  color: isDark ? Colors.white38 : AppColors.grey600,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Funcionalidade disponível quando o backend estiver integrado.',
-                      style: TextStyle(fontFamily: 'Geist'),
-                    ),
-                    backgroundColor: AppColors.error,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-              child: const Text(
-                'Eliminar',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppColors.forestGreen),
+      ),
     );
   }
 
-  void _openAIChat() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const AIChatBottomSheet(),
+  Widget _confirmDialog(
+    BuildContext ctx, {
+    required bool isDark,
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required Color confirmColor,
+    Color? titleColor,
+  }) {
+    return AlertDialog(
+      backgroundColor: isDark ? DarkColors.surface : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontFamily: 'Geist',
+          fontWeight: FontWeight.w700,
+          color: titleColor ?? (isDark ? Colors.white : AppColors.forestGreen),
+        ),
+      ),
+      content: Text(
+        message,
+        style: TextStyle(
+          fontFamily: 'Geist',
+          color: isDark ? Colors.white70 : AppColors.grey800,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: Text(
+            'Cancelar',
+            style: TextStyle(
+              fontFamily: 'Geist',
+              color: isDark ? Colors.white38 : AppColors.grey600,
+            ),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          child: Text(
+            confirmLabel,
+            style: TextStyle(
+              fontFamily: 'Geist',
+              color: confirmColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -181,9 +173,9 @@ class _ProfilePageState extends State<ProfilePage> {
         final state = _controller.state;
 
         if (state is ProfileLoading || state is ProfileInitial) {
-          return Scaffold(
-            backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
-            body: Center(
+          return _scaffold(
+            isDark,
+            Center(
               child: CircularProgressIndicator(
                 color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
                 strokeWidth: 2.5,
@@ -193,88 +185,29 @@ class _ProfilePageState extends State<ProfilePage> {
         }
 
         if (state is ProfileError) {
-          return Scaffold(
-            backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      LucideIcons.alertTriangle,
-                      size: 40,
-                      color: isDark ? Colors.white38 : AppColors.grey600,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      state.message,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Geist',
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white70 : AppColors.grey800,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    OutlinedButton(
-                      onPressed: () => _controller.loadProfile(),
-                      style: OutlinedButton.styleFrom(
-                        side: BorderSide(
-                          color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      ),
-                      child: Text(
-                        'Tentar Novamente',
-                        style: TextStyle(
-                          fontFamily: 'Geist',
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
+          return _scaffold(isDark, _errorView(isDark, state.message));
         }
 
-        // Obtém o perfil carregado (ou em atualização)
         final profile = (state is ProfileLoaded)
             ? state.profile
             : (state as ProfileUpdating).currentProfile;
+        final stats = (state is ProfileLoaded)
+            ? state.stats
+            : (state as ProfileUpdating).stats;
         final isUpdating = state is ProfileUpdating;
 
-        return Scaffold(
-          backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
-          floatingActionButton: FloatingActionButton.small(
-            backgroundColor: isDark ? DarkColors.surface : AppColors.forestGreen,
-            foregroundColor: isDark ? AppColors.sageGreen : Colors.white,
-            elevation: 2,
-            tooltip: 'Assistente IA Xeni',
-            onPressed: _openAIChat,
-            child: const Icon(LucideIcons.sparkles, size: 18),
-          ),
-          body: SingleChildScrollView(
+        return _scaffold(
+          isDark,
+          SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 1. Header Enterprise
                 ProfileHeader(
                   fullName: profile.fullName,
                   isVerified: profile.isVerified,
                 ),
-
                 const SizedBox(height: 20),
-
-                // 2. Informações Pessoais
                 ProfileInfoCard(
                   profile: profile,
                   isUpdating: isUpdating,
@@ -284,7 +217,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       phoneNumber: phoneNumber,
                       neighborhood: neighborhood,
                     );
-
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -294,139 +226,143 @@ class _ProfilePageState extends State<ProfilePage> {
                                 : 'Erro ao atualizar dados. Tente novamente.',
                             style: const TextStyle(fontFamily: 'Geist'),
                           ),
-                          backgroundColor: success ? AppColors.success : AppColors.error,
+                          backgroundColor:
+                              success ? AppColors.success : AppColors.error,
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
                     }
                   },
                 ),
-
                 const SizedBox(height: 16),
-
-                // 3. Estatísticas
                 ProfileStatsGrid(
-                  reportsSubmitted: profile.reportsSubmitted,
-                  reportsResolved: profile.reportsResolved,
-                  reportsPending: profile.reportsPending,
+                  reportsSubmitted: stats.submitted,
+                  reportsResolved: stats.resolved,
+                  reportsPending: stats.pending,
                 ),
-
                 const SizedBox(height: 16),
-
-                // 4. Gamificação
-                ProfileGamificationCard(
-                  points: profile.points,
-                  level: profile.level,
-                  badges: profile.badges,
-                ),
-
-                const SizedBox(height: 16),
-
-                // 5. Histórico (Quick Access)
                 const ProfileQuickAccess(),
-
                 const SizedBox(height: 16),
-
-                // 6. Configurações
-                ProfileSettingsSection(
-                  pushNotifications: _controller.pushNotifications,
-                  emailNotifications: _controller.emailNotifications,
-                  offlineSync: _controller.offlineSync,
-                  language: _controller.language,
-                  onPushChanged: _controller.setPushNotifications,
-                  onEmailChanged: _controller.setEmailNotifications,
-                  onOfflineChanged: _controller.setOfflineSync,
-                  onLanguageChanged: _controller.setLanguage,
-                ),
-
-                const SizedBox(height: 16),
-
-                // 7. Privacidade & Segurança
-                ProfilePrivacySection(
-                  locationPermission: _controller.locationPermission,
-                  cameraPermission: _controller.cameraPermission,
-                  onLocationPermissionChanged: _controller.setLocationPermission,
-                  onCameraPermissionChanged: _controller.setCameraPermission,
-                ),
-
-                const SizedBox(height: 16),
-
-                // 8. Suporte
                 const ProfileSupportSection(),
-
                 const SizedBox(height: 16),
-
-                // 9. Sessão — Botões outline enterprise
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                  child: Column(
-                    children: [
-                      // Terminar Sessão
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showLogoutDialog(isDark),
-                          icon: Icon(
-                            LucideIcons.logOut,
-                            size: 16,
-                            color: isDark ? Colors.white54 : AppColors.grey800,
-                          ),
-                          label: Text(
-                            'Terminar Sessão',
-                            style: TextStyle(
-                              fontFamily: 'Geist',
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? Colors.white54 : AppColors.grey800,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(
-                              color: isDark ? Colors.white.withValues(alpha: 0.1) : AppColors.grey300,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      // Eliminar Conta
-                      SizedBox(
-                        width: double.infinity,
-                        child: TextButton.icon(
-                          onPressed: () => _showDeleteAccountDialog(isDark),
-                          icon: Icon(
-                            LucideIcons.trash2,
-                            size: 14,
-                            color: AppColors.error.withValues(alpha: 0.7),
-                          ),
-                          label: Text(
-                            'Eliminar Conta',
-                            style: TextStyle(
-                              fontFamily: 'Geist',
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.error.withValues(alpha: 0.7),
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
+                _sessionButtons(isDark),
                 const SizedBox(height: AppSpacing.xxxl),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Scaffold _scaffold(bool isDark, Widget body) {
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
+      body: body,
+    );
+  }
+
+  Widget _errorView(bool isDark, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(LucideIcons.triangleAlert,
+                size: 40, color: isDark ? Colors.white38 : AppColors.grey600),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : AppColors.grey800,
+              ),
+            ),
+            const SizedBox(height: 20),
+            OutlinedButton(
+              onPressed: () => _controller.loadProfile(),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                    color:
+                        isDark ? AppColors.sageGreen : AppColors.forestGreen),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              child: Text(
+                'Tentar Novamente',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sessionButtons(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _confirmLogout(isDark),
+              icon: Icon(LucideIcons.logOut,
+                  size: 16,
+                  color: isDark ? Colors.white54 : AppColors.grey800),
+              label: Text(
+                'Terminar Sessão',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white54 : AppColors.grey800,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : AppColors.grey300),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () => _confirmDeleteAccount(isDark),
+              icon: Icon(LucideIcons.trash2,
+                  size: 14, color: AppColors.error.withValues(alpha: 0.8)),
+              label: Text(
+                'Eliminar Conta',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.error.withValues(alpha: 0.8),
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

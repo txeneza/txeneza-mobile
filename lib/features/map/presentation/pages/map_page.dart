@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/occurrence_model.dart';
+import '../../domain/ponto_recolha_model.dart';
 import '../widgets/txeneza_map.dart';
 import '../widgets/pill_toggle.dart';
 import '../widgets/heatmap_legend.dart';
@@ -12,6 +13,7 @@ import '../../../home/presentation/pages/home_screen.dart';
 class MapPage extends StatelessWidget {
   final MapMode mapMode;
   final List<Occurrence> occurrences;
+  final List<PontoRecolha> pontosRecolha;
   final bool isOnline;
   final MapController mapController;
   final double currentScale;
@@ -27,6 +29,7 @@ class MapPage extends StatelessWidget {
     super.key,
     required this.mapMode,
     required this.occurrences,
+    this.pontosRecolha = const [],
     required this.isOnline,
     required this.mapController,
     required this.currentScale,
@@ -61,6 +64,7 @@ class MapPage extends StatelessWidget {
               child: TxenezaMap(
                 mapMode: mapMode,
                 occurrences: occurrences,
+                pontosRecolha: pontosRecolha,
                 showClusters: currentScale < 12.0,
                 currentScale: currentScale,
                 mapController: mapController,

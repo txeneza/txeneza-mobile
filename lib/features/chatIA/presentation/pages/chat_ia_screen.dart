@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
+import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/image_analysis_modal.dart';
@@ -22,7 +23,8 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final GeminiService _geminiService = GeminiService();
-  
+  final ConversacaoDataSource _conversacao = ConversacaoDataSource();
+
   // Connectivity
   bool _isOnline = true;
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
@@ -47,7 +49,45 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   void initState() {
     super.initState();
     _checkInitialConnectivity();
+    _loadHistory();
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  /// Carrega o histórico guardado no Supabase e acrescenta-o após a saudação.
+  Future<void> _loadHistory() async {
+    try {
+      final turnos = await _conversacao.fetchHistory();
+      if (!mounted || turnos.isEmpty) return;
+      setState(() {
+        for (final t in turnos) {
+          final hora = _formatHora(t.dataHora);
+          if (t.mensagemUtilizador.isNotEmpty) {
+            _messages.add({
+              'text': t.mensagemUtilizador,
+              'isUser': true,
+              'time': hora,
+            });
+          }
+          if (t.respostaXeni.isNotEmpty) {
+            _messages.add({
+              'text': t.respostaXeni,
+              'isUser': false,
+              'time': hora,
+            });
+          }
+        }
+      });
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Falha ao carregar histórico da conversa: $e');
+    }
+  }
+
+  String _formatHora(DateTime dt) {
+    final local = dt.toLocal();
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   @override
@@ -99,57 +139,47 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     _messageController.clear();
     _scrollToBottom();
 
-    // Call API / Engine logic
     if (_isOnline) {
       try {
-        final response = await _geminiService.sendMessage(text);
+        // Contexto: últimas ~12 mensagens (exclui a atual), para não enviar
+        // conversas enormes ao modelo.
+        final prior = _messages.sublist(0, _messages.length - 1);
+        final history = prior
+            .sublist(prior.length > 12 ? prior.length - 12 : 0)
+            .where((m) => (m['text'] as String).isNotEmpty)
+            .map((m) => ChatTurn(
+                  text: m['text'] as String,
+                  isUser: m['isUser'] as bool,
+                ))
+            .toList();
+
+        final response = await _geminiService.sendMessage(text, history: history);
         if (mounted) {
           setState(() {
-            _messages.add({
-              'text': response,
-              'isUser': false,
-              'time': 'Agora',
-            });
+            _messages.add({'text': response, 'isUser': false, 'time': 'Agora'});
             _isTyping = false;
           });
         }
+        // Persiste a troca no Supabase (não bloqueia a UI).
+        _conversacao.save(mensagem: text, resposta: response);
       } catch (e) {
-        _handleOfflineOrErrorFallback(text);
+        _addBotMessage(
+            'Não consegui responder agora. Verifique a ligação e tente novamente.');
       }
     } else {
-      _handleOfflineOrErrorFallback(text);
+      _addBotMessage(
+          'Sem ligação à internet. A Xeni precisa de rede para responder — tente novamente quando estiver online.');
     }
     _scrollToBottom();
   }
 
-  void _handleOfflineOrErrorFallback(String userText) {
-    // Simulate TensorFlow Lite local engine offline response
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      
-      String offlineResponse = '### [RESPOSTA OFFLINE - TENSORFLOW LITE]\n';
-      final cleanText = userText.toLowerCase();
-
-      if (cleanText.contains('reciclável') || cleanText.contains('separar')) {
-        offlineResponse += 'Identifiquei que sua dúvida é sobre reciclagem. Na Beira, separe metal, vidro e plástico. Seus relatórios salvos localmente serão sincronizados assim que você estiver online.';
-      } else if (cleanText.contains('pontos') || cleanText.contains('coleta')) {
-        offlineResponse += 'Consulte o mapa para ver postos de coleta. Existem depósitos seletivos perto do Mercado Central e do Macuti pré-carregados no app.';
-      } else if (cleanText.contains('tempo') || cleanText.contains('prazo')) {
-        offlineResponse += 'O SLA padrão para remoção de lixo crítico é de 48 horas úteis através dos canais de notificação da edilidade.';
-      } else {
-        offlineResponse += 'O assistente está rodando no modo local (offline). Suas mensagens e ocorrências estão guardadas e serão analisadas profundamente pela IA da Txeneza no servidor central assim que restabelecer conexão.';
-      }
-
-      setState(() {
-        _messages.add({
-          'text': offlineResponse,
-          'isUser': false,
-          'time': 'Agora',
-        });
-        _isTyping = false;
-      });
-      _scrollToBottom();
+  void _addBotMessage(String text) {
+    if (!mounted) return;
+    setState(() {
+      _messages.add({'text': text, 'isUser': false, 'time': 'Agora'});
+      _isTyping = false;
     });
+    _scrollToBottom();
   }
 
   void _openImageSelectionModal() {
@@ -160,18 +190,16 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
       builder: (context) {
         return ImageAnalysisModal(
           geminiService: _geminiService,
-          onAnalysisComplete: (imageName, imageAsset, analysisResult) {
+          onAnalysisComplete: (imagePath, analysisResult) {
             setState(() {
-              // User sends the photo message
+              // Mensagem do utilizador com a foto real.
               _messages.add({
-                'text': 'Anexei uma ocorrência: $imageName',
+                'text': 'Foto do resíduo enviada.',
                 'isUser': true,
                 'time': 'Agora',
-                'simulatedImageName': imageName,
-                'simulatedImageAsset': imageAsset,
+                'imagePath': imagePath,
               });
-
-              // Bot replies with classification results (Gemini or TensorFlow Lite)
+              // Resposta de classificação da Xeni.
               _messages.add({
                 'text': analysisResult,
                 'isUser': false,
@@ -179,6 +207,11 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
               });
             });
             _scrollToBottom();
+            // Persiste no histórico (a imagem em si não é guardada nesta tabela).
+            _conversacao.save(
+              mensagem: 'Foto do resíduo enviada.',
+              resposta: analysisResult,
+            );
           },
         );
       },
@@ -217,8 +250,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                       text: msg['text'],
                       isUser: msg['isUser'],
                       time: msg['time'],
-                      simulatedImageName: msg['simulatedImageName'],
-                      simulatedImageAsset: msg['simulatedImageAsset'],
+                      imagePath: msg['imagePath'],
                     );
                   },
                 ),
@@ -452,7 +484,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                             Text(
                               _isOnline
                                   ? 'Gemini 2.5 Flash (Online)'
-                                  : 'TensorFlow Lite (Offline Local)',
+                                  : 'Sem ligação',
                               style: TextStyles.captionSmall.copyWith(
                                 color: AppColors.grey600,
                                 fontSize: 10,
