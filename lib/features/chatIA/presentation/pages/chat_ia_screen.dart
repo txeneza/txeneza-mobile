@@ -592,7 +592,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                           LucideIcons.moreVertical,
                           color: isDark ? AppColors.white : AppColors.forestGreen,
                         ),
-                        dropdownColor: isDark ? AppColors.grey900 : AppColors.white,
+                        color: isDark ? AppColors.grey900 : AppColors.white,
                         onSelected: (value) {
                           if (value == 'new') {
                             _startNewConversation();
