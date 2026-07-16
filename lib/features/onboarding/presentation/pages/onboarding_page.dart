@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:preload_page_view/preload_page_view.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/routes/app_routes.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
@@ -14,14 +13,14 @@ class OnboardingPage extends StatefulWidget {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
-  late final PreloadPageController _pageController;
+  late final PageController _pageController;
   int _currentPage = 0;
   static const int _totalPages = 4;
 
   @override
   void initState() {
     super.initState();
-    _pageController = PreloadPageController();
+    _pageController = PageController();
   }
 
   @override
@@ -93,11 +92,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
 
-            // PreloadPageView for Onboarding Slides
+            // PageView for Onboarding Slides
             Expanded(
-              child: PreloadPageView(
+              child: PageView(
                 controller: _pageController,
-                preloadPagesCount: _totalPages,
                 onPageChanged: _onPageChanged,
                 physics: const BouncingScrollPhysics(),
                 children: [

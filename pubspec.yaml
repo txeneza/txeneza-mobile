@@ -26,7 +26,6 @@ dependencies:
   # estende IconData, que passou a ser uma final class.
   lucide_icons_flutter: ^3.1.15
   rive: ^0.14.9
-  preload_page_view: ^0.2.0
   google_fonts: ^8.1.0
   flutter_map: ^8.3.0
   latlong2: ^0.9.1
