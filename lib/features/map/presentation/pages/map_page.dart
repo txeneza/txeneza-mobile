@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../domain/occurrence_model.dart';
@@ -15,7 +15,7 @@ class MapPage extends StatelessWidget {
   final List<Occurrence> occurrences;
   final List<PontoRecolha> pontosRecolha;
   final bool isOnline;
-  final MapController mapController;
+  final void Function(MapboxMap) onMapCreated;
   final double currentScale;
   final LatLng userLocation;
   final bool isResolvingGps;
@@ -31,7 +31,7 @@ class MapPage extends StatelessWidget {
     required this.occurrences,
     this.pontosRecolha = const [],
     required this.isOnline,
-    required this.mapController,
+    required this.onMapCreated,
     required this.currentScale,
     required this.userLocation,
     required this.isResolvingGps,
@@ -67,7 +67,7 @@ class MapPage extends StatelessWidget {
                 pontosRecolha: pontosRecolha,
                 showClusters: currentScale < 12.0,
                 currentScale: currentScale,
-                mapController: mapController,
+                onMapCreated: onMapCreated,
                 userLocation: userLocation,
                 isResolvingGps: isResolvingGps,
                 onScaleChanged: onScaleChanged,

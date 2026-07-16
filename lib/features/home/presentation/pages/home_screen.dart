@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart' as mapbox;
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   // Map state
-  late final MapController _mapController;
+  mapbox.MapboxMap? _mapboxMap;
   double _currentScale = 12.5;
   bool _isResolvingGps = false;
   // Posição do utilizador: começa no centro da Beira e é atualizada pelo GPS.
@@ -59,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _mapController = MapController();
     _checkInitialConnectivity();
     _loadPontosRecolha();
     _loadOccurrences();
@@ -177,54 +176,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _connectivitySubscription.cancel();
-    _mapController.dispose();
     super.dispose();
   }
 
-  // Smooth map centering animation
+  // Smooth map centering animation using Mapbox's native flyTo
   void _animateMapTo(LatLng target, double targetZoom) {
-    try {
-      final double startZoom = _mapController.camera.zoom;
-      final LatLng startCenter = _mapController.camera.center;
-
-      final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
-      final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
-      final zoomTween = Tween<double>(begin: startZoom, end: targetZoom);
-
-      final AnimationController controller = AnimationController(
-        duration: const Duration(milliseconds: 900),
-        vsync: this,
-      );
-
-      final Animation<double> animation = CurvedAnimation(
-        parent: controller,
-        curve: Curves.easeInOutCubic,
-      );
-
-      controller.addListener(() {
-        if (!mounted) return;
-        try {
-          _mapController.move(
-            LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-            zoomTween.evaluate(animation),
-          );
-          setState(() {
-            _currentScale = zoomTween.evaluate(animation);
-          });
-        } catch (e) {
-          debugPrint('Failed to move map: $e');
-          controller.stop();
-        }
-      });
-
-      controller.forward().then((_) {
-        if (mounted) {
-          controller.dispose();
-        }
-      });
-    } catch (e) {
-      debugPrint('MapController is not ready yet: $e');
-    }
+    final map = _mapboxMap;
+    if (map == null) return;
+    map.flyTo(
+      mapbox.CameraOptions(
+        center: mapbox.Point(coordinates: mapbox.Position(target.longitude, target.latitude)),
+        zoom: targetZoom,
+      ),
+      mapbox.MapAnimationOptions(duration: 900),
+    );
   }
 
   /// GPS real: obtém a posição do dispositivo e centra o mapa nela. Se o GPS
@@ -347,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         occurrences: _occurrences,
                         pontosRecolha: _pontosRecolha,
                         isOnline: _isOnline,
-                        mapController: _mapController,
+                        onMapCreated: (mapbox.MapboxMap mapboxMap) => _mapboxMap = mapboxMap,
                         currentScale: _currentScale,
                         userLocation: _userLocation,
                         isResolvingGps: _isResolvingGps,

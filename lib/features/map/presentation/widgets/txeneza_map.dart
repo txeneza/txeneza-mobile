@@ -1,7 +1,12 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import '../../../../core/config/env/app_env.dart';
+import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:latlong2/latlong.dart' as latlong;
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+
+import '../../../../core/theme/colors/app_colors.dart';
 import '../../domain/occurrence_model.dart';
 import '../../domain/ponto_recolha_model.dart';
 import 'occurrence_marker_widget.dart';
@@ -15,8 +20,8 @@ class TxenezaMap extends StatefulWidget {
   final List<PontoRecolha> pontosRecolha;
   final bool showClusters;
   final double currentScale; // Used as current zoom level
-  final MapController mapController;
-  final LatLng? userLocation;
+  final void Function(MapboxMap) onMapCreated;
+  final latlong.LatLng? userLocation;
   final bool isResolvingGps;
   final ValueChanged<double> onScaleChanged;
 
@@ -27,7 +32,7 @@ class TxenezaMap extends StatefulWidget {
     this.pontosRecolha = const [],
     required this.showClusters,
     required this.currentScale,
-    required this.mapController,
+    required this.onMapCreated,
     this.userLocation,
     required this.isResolvingGps,
     required this.onScaleChanged,
@@ -37,202 +42,129 @@ class TxenezaMap extends StatefulWidget {
   State<TxenezaMap> createState() => _TxenezaMapState();
 }
 
-class _TxenezaMapState extends State<TxenezaMap> with TickerProviderStateMixin {
-  // Animate map controller changes
-  void _zoomIntoCluster(LatLng target) {
-    const double targetZoom = 15.0;
-    
-    final double startZoom = widget.mapController.camera.zoom;
-    final LatLng startCenter = widget.mapController.camera.center;
-
-    final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
-    final lngTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
-    final zoomTween = Tween<double>(begin: startZoom, end: targetZoom);
-
-    final animationController = AnimationController(
-      duration: const Duration(milliseconds: 700),
-      vsync: this,
-    );
-
-    final Animation<double> animation = CurvedAnimation(
-      parent: animationController,
-      curve: Curves.easeInOutCubic,
-    );
-
-    animationController.addListener(() {
-      widget.mapController.move(
-        LatLng(latTween.evaluate(animation), lngTween.evaluate(animation)),
-        zoomTween.evaluate(animation),
-      );
-    });
-
-    animationController.forward().then((_) => animationController.dispose());
-  }
+class _TxenezaMapState extends State<TxenezaMap> {
+  MapboxMap? _mapboxMap;
+  PointAnnotationManager? _pointAnnotationManager;
+  CircleAnnotationManager? _circleAnnotationManager;
+  final Map<String, dynamic> _annotationPayloads = {};
 
   @override
-  Widget build(BuildContext context) {
-    // Mapbox URL template strings
-    // Normal style: mapbox/light-v11 (beautiful desaturated grey-beige tiles)
-    // Satellite style: mapbox/satellite-streets-v12 (realistic satellite imagery with street labels)
-    // Heatmap style: mapbox/dark-v11 (dark slate theme to make gradients glow)
-    final String tileUrl = switch (widget.mapMode) {
-      MapMode.normal => 'https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${AppEnv.mapboxAccessToken}',
-      MapMode.satellite => 'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${AppEnv.mapboxAccessToken}',
-      MapMode.heatmap => 'https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}@2x?access_token=${AppEnv.mapboxAccessToken}',
-    };
-
-    return FlutterMap(
-      mapController: widget.mapController,
-      options: MapOptions(
-        initialCenter: const LatLng(-19.833, 34.850), // Centered on Port of Beira
-        initialZoom: 12.5,
-        minZoom: 10.0,
-        maxZoom: 18.0,
-        onPositionChanged: (position, hasGesture) {
-          if (position.zoom != widget.currentScale) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              widget.onScaleChanged(position.zoom);
-            });
-          }
-        },
-      ),
-      children: [
-        // Layer 1: Tile Images from Mapbox
-        TileLayer(
-          urlTemplate: tileUrl,
-          userAgentPackageName: 'com.txeneza.app',
-          retinaMode: true,
-        ),
-
-        // Layer 2: Georeferenced Heatmap Circles (Only active in Heatmap mode)
-        if (widget.mapMode == MapMode.heatmap)
-          CircleLayer(
-            circles: [
-              // Munhava (Alta densidade)
-              CircleMarker(
-                point: const LatLng(-19.8100, 34.8150),
-                radius: 450,
-                useRadiusInMeter: true,
-                color: const Color(0xFFFF3B30).withValues(alpha: 0.55),
-                borderStrokeWidth: 0,
-              ),
-              // Ponta Gêa / Centro (Média densidade)
-              CircleMarker(
-                point: const LatLng(-19.8350, 34.8410),
-                radius: 350,
-                useRadiusInMeter: true,
-                color: const Color(0xFFFF9500).withValues(alpha: 0.50),
-                borderStrokeWidth: 0,
-              ),
-              // Macuti (Baixa densidade)
-              CircleMarker(
-                point: const LatLng(-19.8250, 34.8700),
-                radius: 280,
-                useRadiusInMeter: true,
-                color: const Color(0xFFFFCC00).withValues(alpha: 0.45),
-                borderStrokeWidth: 0,
-              ),
-            ],
-          ),
-
-        // Layer 3: Markers & Clusters (Only active in non-heatmap modes)
-        if (widget.mapMode != MapMode.heatmap) ...[
-          // Pontos de recolha oficiais (geridos pelo painel admin web).
-          // Vêm antes das ocorrências para ficarem por baixo destas: uma
-          // denúncia é mais urgente do que a infraestrutura.
-          if (widget.pontosRecolha.isNotEmpty)
-            MarkerLayer(
-              markers: widget.pontosRecolha.map((ponto) {
-                return Marker(
-                  point: ponto.position,
-                  width: 34,
-                  height: 34,
-                  child: PontoRecolhaMarker(
-                    onTap: () => showPontoRecolhaDetails(context, ponto),
-                  ),
-                );
-              }).toList(),
-            ),
-
-          // Occurrence Markers
-          MarkerLayer(
-            markers: _buildMarkers(),
-          ),
-
-          // User GPS position pulsing dot (If location is active and resolved)
-          if (widget.userLocation != null && !widget.isResolvingGps)
-            MarkerLayer(
-              markers: [
-                Marker(
-                  point: widget.userLocation ?? const LatLng(0, 0),
-                  width: 48,
-                  height: 48,
-                  child: const _UserPulseMarker(),
-                ),
-              ],
-            ),
-        ],
-
-        // Subtle Mapbox/OpenStreetMap attribution in bottom right corner
-        const SimpleAttributionWidget(
-          source: Text(
-            '© Mapbox © OpenStreetMap',
-            style: TextStyle(
-              fontSize: 9,
-              fontFamily: 'Geist',
-              color: Colors.black26,
-            ),
-          ),
-          alignment: Alignment.bottomLeft, // Align left so it doesn't conflict with FAB
-        ),
-      ],
-    );
-  }
-
-  List<Marker> _buildMarkers() {
-    if (widget.showClusters) {
-      // Clustered representations using real neighborhood coordinates
-      final pgGroup = widget.occurrences.where((o) => o.id == '1' || o.id == '2').toList();
-      final mhGroup = widget.occurrences.where((o) => o.id == '3' || o.id == '4' || o.id == '5').toList();
-      final mcGroup = widget.occurrences.where((o) => o.id == '6' || o.id == '7' || o.id == '8').toList();
-      final ceGroup = widget.occurrences.where((o) => o.id == '9' || o.id == '10').toList();
-
-      final List<Marker> clusterMarkers = [];
-
-      if (pgGroup.isNotEmpty) {
-        clusterMarkers.add(_buildClusterMarker(const LatLng(-19.8365, 34.8395), pgGroup));
+  void didUpdateWidget(covariant TxenezaMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.occurrences != oldWidget.occurrences ||
+        widget.pontosRecolha != oldWidget.pontosRecolha ||
+        widget.showClusters != oldWidget.showClusters ||
+        widget.mapMode != oldWidget.mapMode ||
+        widget.currentScale != oldWidget.currentScale) {
+      
+      if (widget.mapMode != oldWidget.mapMode) {
+        _updateStyle();
       }
-      if (mhGroup.isNotEmpty) {
-        clusterMarkers.add(_buildClusterMarker(const LatLng(-19.8110, 34.8150), mhGroup));
-      }
-      if (mcGroup.isNotEmpty) {
-        clusterMarkers.add(_buildClusterMarker(const LatLng(-19.8243, 34.8710), mcGroup));
-      }
-      if (ceGroup.isNotEmpty) {
-        clusterMarkers.add(_buildClusterMarker(const LatLng(-19.8190, 34.8475), ceGroup));
-      }
-
-      return clusterMarkers;
-    } else {
-      // Individual occurrences
-      return widget.occurrences.map((occ) {
-        return Marker(
-          point: occ.position,
-          width: 40,
-          height: 50,
-          // topCenter faz a ponta inferior do pin apontar a coordenada exata.
-          alignment: Alignment.topCenter,
-          child: OccurrenceMarkerWidget(
-            occurrence: occ,
-            currentScale: widget.currentScale,
-          ),
-        );
-      }).toList();
+      _renderMarkersAndCircles();
     }
   }
 
-  Marker _buildClusterMarker(LatLng coords, List<Occurrence> items) {
-    // Cluster status inherits the highest priority item status
+  void _onMapCreated(MapboxMap mapboxMap) async {
+    _mapboxMap = mapboxMap;
+    widget.onMapCreated(mapboxMap);
+
+    // Definir posição da câmara inicial (Beira) apenas uma vez
+    await mapboxMap.setCamera(
+      CameraOptions(
+        center: Point(coordinates: Position(34.850, -19.833)), // Longitude, Latitude
+        zoom: 12.5,
+      ),
+    );
+
+    // Ativar o ponto azul de localização nativo do Mapbox
+    await mapboxMap.location.updateSettings(
+      LocationComponentSettings(
+        enabled: true,
+        pulsingEnabled: true,
+        showAccuracyRing: true,
+      ),
+    );
+
+    // Inicializar os Annotation Managers
+    _pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+    _circleAnnotationManager = await mapboxMap.annotations.createCircleAnnotationManager();
+
+    // Registar eventos de cliques via stream
+    _pointAnnotationManager?.tapEvents(
+      onTap: (annotation) {
+        final payload = _annotationPayloads[annotation.id];
+        if (payload is Occurrence) {
+          _handleOccurrenceTap(payload);
+        } else if (payload is PontoRecolha) {
+          showPontoRecolhaDetails(context, payload);
+        } else if (payload is latlong.LatLng) {
+          _zoomIntoCluster(payload);
+        }
+      },
+    );
+
+    _renderMarkersAndCircles();
+  }
+
+  void _updateStyle() {
+    if (_mapboxMap == null) return;
+    final styleUri = switch (widget.mapMode) {
+      MapMode.normal => MapboxStyles.LIGHT,
+      MapMode.satellite => MapboxStyles.SATELLITE_STREETS,
+      MapMode.heatmap => MapboxStyles.DARK,
+    };
+    _mapboxMap!.loadStyleURI(styleUri);
+  }
+
+  void _zoomIntoCluster(latlong.LatLng target) async {
+    if (_mapboxMap == null) return;
+    await _mapboxMap!.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(target.longitude, target.latitude)),
+        zoom: 15.0,
+      ),
+      MapAnimationOptions(duration: 700),
+    );
+  }
+
+  void _handleOccurrenceTap(Occurrence occ) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${occ.title}: ${occ.description}',
+          style: const TextStyle(fontFamily: 'Geist'),
+        ),
+        backgroundColor: const Color(0xFF01403A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  double _getPixelRadius(double metersRadius, latlong.LatLng point, double zoom) {
+    final latitudeInRad = point.latitude * math.pi / 180.0;
+    final metersPerPixel = 156543.03 * math.cos(latitudeInRad) / math.pow(2, zoom);
+    return metersRadius / metersPerPixel;
+  }
+
+  void _createHeatmapCircle(latlong.LatLng center, double metersRadius, Color color) async {
+    if (_circleAnnotationManager == null) return;
+    final radiusInPixels = _getPixelRadius(metersRadius, center, widget.currentScale);
+
+    final options = CircleAnnotationOptions(
+      geometry: Point(coordinates: Position(center.longitude, center.latitude)),
+      circleColor: color.toARGB32(),
+      circleRadius: radiusInPixels,
+      circleOpacity: 0.55,
+      circleStrokeWidth: 0.0,
+    );
+    await _circleAnnotationManager!.create(options);
+  }
+
+  Future<void> _createClusterMarker(latlong.LatLng coords, List<Occurrence> items) async {
+    if (_pointAnnotationManager == null) return;
+
     OccurrenceStatus clusterStatus = OccurrenceStatus.resolved;
     if (items.any((o) => o.status == OccurrenceStatus.critical)) {
       clusterStatus = OccurrenceStatus.critical;
@@ -240,108 +172,259 @@ class _TxenezaMapState extends State<TxenezaMap> with TickerProviderStateMixin {
       clusterStatus = OccurrenceStatus.pending;
     }
 
-    return Marker(
-      point: coords,
-      width: 52,
-      height: 52,
-      child: OccurrenceMarkerWidget(
-        clusterCount: items.length,
-        clusterStatus: clusterStatus,
-        currentScale: widget.currentScale,
-        onTap: () {
-          _zoomIntoCluster(coords);
-        },
-      ),
+    final color = occurrenceStatusColor(clusterStatus);
+    final clusterImage = await _generateClusterMarker(count: items.length, color: color);
+
+    final options = PointAnnotationOptions(
+      geometry: Point(coordinates: Position(coords.longitude, coords.latitude)),
+      image: clusterImage,
+      iconSize: 0.5,
     );
-  }
-}
-
-// User location pulsating blue dot
-class _UserPulseMarker extends StatefulWidget {
-  const _UserPulseMarker();
-
-  @override
-  State<_UserPulseMarker> createState() => _UserPulseMarkerState();
-}
-
-class _UserPulseMarkerState extends State<_UserPulseMarker> with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
-  late final Animation<double> _pulseAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat();
-
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 2.2).animate(
-      CurvedAnimation(
-        parent: _pulseController,
-        curve: Curves.easeOut,
-      ),
-    );
+    final annotation = await _pointAnnotationManager!.create(options);
+    _annotationPayloads[annotation.id] = coords;
   }
 
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
+  Future<void> _renderMarkersAndCircles() async {
+    if (_mapboxMap == null || _pointAnnotationManager == null || _circleAnnotationManager == null) return;
+
+    // Limpar os marcadores anteriores
+    await _pointAnnotationManager!.deleteAll();
+    await _circleAnnotationManager!.deleteAll();
+    _annotationPayloads.clear();
+
+    if (widget.mapMode == MapMode.heatmap) {
+      if (widget.occurrences.isNotEmpty) {
+        for (final occ in widget.occurrences) {
+          final color = occurrenceStatusColor(occ.status);
+          _createHeatmapCircle(occ.position, 150.0, color);
+        }
+      } else {
+        // Fallback para mockups se a base de dados estiver vazia
+        _createHeatmapCircle(const latlong.LatLng(-19.8100, 34.8150), 450, const Color(0xFFFF3B30));
+        _createHeatmapCircle(const latlong.LatLng(-19.8350, 34.8410), 350, const Color(0xFFFF9500));
+        _createHeatmapCircle(const latlong.LatLng(-19.8250, 34.8700), 280, const Color(0xFFFFCC00));
+      }
+    } else {
+      // Pontos de recolha oficiais
+      if (widget.pontosRecolha.isNotEmpty) {
+        final pontoRecolhaImage = await _generatePontoRecolhaMarker();
+        for (final ponto in widget.pontosRecolha) {
+          final options = PointAnnotationOptions(
+            geometry: Point(coordinates: Position(ponto.position.longitude, ponto.position.latitude)),
+            image: pontoRecolhaImage,
+            iconSize: 0.5,
+          );
+          final annotation = await _pointAnnotationManager!.create(options);
+          _annotationPayloads[annotation.id] = ponto;
+        }
+      }
+
+      // Ocorrências
+      if (widget.showClusters) {
+        final pgGroup = widget.occurrences.where((o) => o.id == '1' || o.id == '2').toList();
+        final mhGroup = widget.occurrences.where((o) => o.id == '3' || o.id == '4' || o.id == '5').toList();
+        final mcGroup = widget.occurrences.where((o) => o.id == '6' || o.id == '7' || o.id == '8').toList();
+        final ceGroup = widget.occurrences.where((o) => o.id == '9' || o.id == '10').toList();
+
+        if (pgGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8365, 34.8395), pgGroup);
+        if (mhGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8110, 34.8150), mhGroup);
+        if (mcGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8243, 34.8710), mcGroup);
+        if (ceGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8190, 34.8475), ceGroup);
+      } else {
+        for (final occ in widget.occurrences) {
+          final color = occurrenceStatusColor(occ.status);
+          final icon = occurrenceStatusIcon(occ.status);
+          final pinImage = await _generateTeardropPin(color: color, icon: icon);
+
+          final options = PointAnnotationOptions(
+            geometry: Point(coordinates: Position(occ.position.longitude, occ.position.latitude)),
+            image: pinImage,
+            iconSize: 0.5,
+            iconAnchor: IconAnchor.BOTTOM,
+          );
+          final annotation = await _pointAnnotationManager!.create(options);
+          _annotationPayloads[annotation.id] = occ;
+        }
+      }
+    }
+  }
+
+  // --- Desenho em Canvas na Memória (Uint8List PNG) ---
+
+  Future<Uint8List> _generateTeardropPin({
+    required Color color,
+    required IconData icon,
+    double width = 80.0,
+    double height = 100.0,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    const double stroke = 4.0;
+    final double r = width / 2 - stroke;
+    final Offset head = Offset(width / 2, r + stroke);
+
+    final headPath = Path()..addOval(Rect.fromCircle(center: head, radius: r));
+    final tailPath = Path()
+      ..moveTo(head.dx - r * 0.66, head.dy + r * 0.5)
+      ..lineTo(head.dx + r * 0.66, head.dy + r * 0.5)
+      ..lineTo(width / 2, height)
+      ..close();
+    final pin = Path.combine(PathOperation.union, headPath, tailPath);
+
+    canvas.drawShadow(pin, Colors.black.withValues(alpha: 0.35), 8.0, false);
+    canvas.drawPath(pin, Paint()..color = color);
+    canvas.drawPath(
+      pin,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke,
+    );
+
+    canvas.drawCircle(
+      head,
+      r - 6,
+      Paint()..color = Colors.white.withValues(alpha: 0.14),
+    );
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontSize: 32,
+        fontFamily: icon.fontFamily,
+        package: icon.fontPackage,
+        color: Colors.white,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(head.dx - textPainter.width / 2, head.dy - textPainter.height / 2),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), height.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _generateClusterMarker({
+    required int count,
+    required Color color,
+    double width = 104.0,
+    double height = 104.0,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final double center = width / 2;
+
+    canvas.drawCircle(
+      Offset(center, center),
+      center,
+      Paint()..color = color.withValues(alpha: 0.18),
+    );
+
+    canvas.drawCircle(
+      Offset(center, center),
+      40.0,
+      Paint()..color = color,
+    );
+
+    canvas.drawCircle(
+      Offset(center, center),
+      40.0,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5.0,
+    );
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: '$count',
+      style: const TextStyle(
+        fontFamily: 'Geist',
+        color: Colors.white,
+        fontSize: 30,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(center - textPainter.width / 2, center - textPainter.height / 2),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), height.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _generatePontoRecolhaMarker({
+    double width = 72.0,
+    double height = 72.0,
+  }) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final double center = width / 2;
+
+    canvas.drawCircle(
+      Offset(center, center),
+      center - 4,
+      Paint()..color = Colors.white,
+    );
+
+    canvas.drawCircle(
+      Offset(center, center),
+      center - 4,
+      Paint()
+        ..color = AppColors.forestGreen
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0,
+    );
+
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+    textPainter.text = TextSpan(
+      text: String.fromCharCode(LucideIcons.trash2.codePoint),
+      style: TextStyle(
+        fontSize: 32,
+        fontFamily: LucideIcons.trash2.fontFamily,
+        package: LucideIcons.trash2.fontPackage,
+        color: AppColors.forestGreen,
+      ),
+    );
+    textPainter.layout();
+    textPainter.paint(
+      canvas,
+      Offset(center - textPainter.width / 2, center - textPainter.height / 2),
+    );
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width.toInt(), height.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        return SizedBox(
-          width: 48,
-          height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Pulse shadow
-              Container(
-                width: 24 * _pulseAnimation.value,
-                height: 24 * _pulseAnimation.value,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blue.withValues(alpha: 1.0 - (_pulseAnimation.value - 1.0) / 1.2),
-                ),
-              ),
-              // Accuracy circle
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blue.withValues(alpha: 0.12),
-                  border: Border.all(
-                    color: Colors.blue.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
-              ),
-              // Inner core dot
-              Container(
-                width: 12,
-                height: 12,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.blue,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    )
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
+    final styleUri = switch (widget.mapMode) {
+      MapMode.normal => MapboxStyles.LIGHT,
+      MapMode.satellite => MapboxStyles.SATELLITE_STREETS,
+      MapMode.heatmap => MapboxStyles.DARK,
+    };
+
+    return MapWidget(
+      key: const ValueKey('mapbox_widget'),
+      styleUri: styleUri,
+      onMapCreated: _onMapCreated,
+      onCameraChangeListener: (data) {
+        final zoom = data.cameraState.zoom;
+        if (zoom != widget.currentScale) {
+          widget.onScaleChanged(zoom);
+        }
       },
     );
   }
