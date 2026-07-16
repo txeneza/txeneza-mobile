@@ -61,4 +61,11 @@ class ConversacaoDataSource {
       );
     }).toList();
   }
+
+  /// Apaga de forma definitiva todo o histórico de conversas do utilizador no Supabase.
+  Future<void> clearHistory() async {
+    final uid = _client.auth.currentUser?.id;
+    if (uid == null) return;
+    await _client.from('conversacao_xeni').delete().eq('id_utilizador', uid);
+  }
 }

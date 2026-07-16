@@ -83,6 +83,98 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     }
   }
 
+  void _startNewConversation() {
+    setState(() {
+      _messages.clear();
+      _messages.add({
+        'text': 'Olá! Eu sou a Xeni, sua Assistente de Inteligência Municipal Txeneza. Estou pronta para processar denúncias de resíduos e responder a dúvidas sobre saneamento e coleta seletiva na cidade da Beira. Como posso ajudar você hoje?',
+        'isUser': false,
+        'time': 'Agora',
+      });
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Nova conversa iniciada.', style: TextStyle(fontFamily: 'Geist')),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _confirmClearHistory(bool isDark) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.grey900 : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Limpar Histórico',
+          style: TextStyle(
+            fontFamily: 'Geist',
+            fontWeight: FontWeight.bold,
+            color: AppColors.error,
+          ),
+        ),
+        content: Text(
+          'Tem a certeza de que deseja apagar todo o histórico de conversas do servidor? Esta ação não pode ser desfeita.',
+          style: TextStyle(
+            fontFamily: 'Geist',
+            color: isDark ? Colors.white70 : AppColors.grey800,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                color: isDark ? Colors.white38 : AppColors.grey600,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Apagar tudo',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                color: AppColors.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      setState(() {
+        _isTyping = true;
+      });
+      try {
+        await _conversacao.clearHistory();
+        _startNewConversation();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Erro ao limpar histórico. Tente novamente.', style: TextStyle(fontFamily: 'Geist')),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+          });
+        }
+      }
+    }
+  }
+
   String _formatHora(DateTime dt) {
     final local = dt.toLocal();
     final h = local.hour.toString().padLeft(2, '0');
@@ -492,6 +584,64 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                             ),
                           ],
                         ),
+                      ),
+
+                      // Menu de Opções
+                      PopupMenuButton<String>(
+                        icon: Icon(
+                          LucideIcons.moreVertical,
+                          color: isDark ? AppColors.white : AppColors.forestGreen,
+                        ),
+                        dropdownColor: isDark ? AppColors.grey900 : AppColors.white,
+                        onSelected: (value) {
+                          if (value == 'new') {
+                            _startNewConversation();
+                          } else if (value == 'clear') {
+                            _confirmClearHistory(isDark);
+                          }
+                        },
+                        itemBuilder: (BuildContext context) => [
+                          PopupMenuItem<String>(
+                            value: 'new',
+                            child: Row(
+                              children: [
+                                Icon(
+                                  LucideIcons.messageSquarePlus,
+                                  size: 18,
+                                  color: isDark ? AppColors.white : AppColors.forestGreen,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Nova Conversa',
+                                  style: TextStyle(
+                                    fontFamily: 'Geist',
+                                    color: isDark ? AppColors.white : AppColors.grey900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'clear',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  LucideIcons.trash2,
+                                  size: 18,
+                                  color: AppColors.error,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Limpar Histórico',
+                                  style: TextStyle(
+                                    fontFamily: 'Geist',
+                                    color: isDark ? AppColors.white : AppColors.grey900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

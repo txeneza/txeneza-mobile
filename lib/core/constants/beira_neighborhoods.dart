@@ -34,7 +34,6 @@ class BeiraNeighborhoods {
     'Nhangau',
     'Nhangoma',
     'Pioneiros',
-    'Ponta Gea',
     'Ponta Gêa',
     'Tchondja',
     'Vaz',

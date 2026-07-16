@@ -57,10 +57,18 @@ class ProfileSettingsSection extends StatelessWidget {
                 builder: (context, _) {
                   return Switch(
                     value: themeProvider.isDarkMode,
-                    activeColor: AppColors.forestGreen,
-                    activeTrackColor: AppColors.sageGreen,
-                    inactiveThumbColor: AppColors.grey600,
-                    inactiveTrackColor: AppColors.grey300,
+                    thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return AppColors.forestGreen;
+                      }
+                      return AppColors.grey600;
+                    }),
+                    trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return AppColors.sageGreen;
+                      }
+                      return AppColors.grey300;
+                    }),
                     onChanged: (val) {
                       themeProvider.toggleTheme();
                     },
