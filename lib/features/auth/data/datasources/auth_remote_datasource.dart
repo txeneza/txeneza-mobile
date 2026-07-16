@@ -65,6 +65,7 @@ class AuthRemoteDataSource {
     await _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: _googleRedirectUrl,
+      authScreenLaunchMode: LaunchMode.inAppBrowserView,
     );
   }
 
