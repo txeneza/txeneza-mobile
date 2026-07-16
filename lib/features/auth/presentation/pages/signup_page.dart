@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/routes/app_routes.dart';
 import '../../../../core/constants/auth_strings.dart';
 import '../../../../core/theme/colors/app_colors.dart';
@@ -12,6 +12,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/auth_header_widget.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -40,6 +41,7 @@ class _SignUpPageState extends State<SignUpPage> {
   late final AuthController _controller;
 
   bool _isAutovalidating = false;
+  bool _usedGoogleSignIn = false;
 
   @override
   void initState() {
@@ -74,12 +76,26 @@ class _SignUpPageState extends State<SignUpPage> {
 
   void _onStateChanged() {
     if (!mounted) return;
-    
+
     final state = _controller.state;
-    if (state is AuthSuccess) {
+    if (state is AuthSuccess && _usedGoogleSignIn) {
+      // Login com Google já autentica de facto: segue directo para a home.
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(AuthStrings.signUpSuccess),
+          content: Text(AuthStrings.loginSuccess),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+    } else if (state is AuthSuccess || state is AuthSignUpPendingConfirmation) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            state is AuthSignUpPendingConfirmation
+                ? AuthStrings.signUpPendingConfirmation
+                : AuthStrings.signUpSuccess,
+          ),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -166,6 +182,7 @@ class _SignUpPageState extends State<SignUpPage> {
       }
       
       FocusScope.of(context).unfocus();
+      _usedGoogleSignIn = false;
       _controller.signUp(
         fullName: _nameController.text,
         email: _emailController.text,
@@ -174,6 +191,11 @@ class _SignUpPageState extends State<SignUpPage> {
         neighborhood: _selectedNeighborhood!,
       );
     }
+  }
+
+  void _submitGoogle() {
+    _usedGoogleSignIn = true;
+    _controller.signInWithGoogle();
   }
 
   @override
@@ -326,6 +348,13 @@ class _SignUpPageState extends State<SignUpPage> {
                                     ),
                                   )
                                 : const Text(AuthStrings.signUpButton),
+                          ),
+                          AppSpacing.verticalSpaceLG,
+
+                          // Login com Google
+                          GoogleSignInButton(
+                            isDark: isDark,
+                            onPressed: isLoading ? null : _submitGoogle,
                           ),
                           AppSpacing.verticalSpaceLG,
 

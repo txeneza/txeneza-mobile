@@ -57,18 +57,21 @@ class ProfileUserModel extends UserEntity {
     );
   }
 
+  /// [json] é uma linha da tabela "utilizador" do Supabase. Os campos de
+  /// gamificação não existem nessa tabela ainda — ficam com valores
+  /// placeholder até existir uma funcionalidade real de relatórios/pontos.
   factory ProfileUserModel.fromJson(Map<String, dynamic> json) {
     return ProfileUserModel(
-      id: json['id'] as String,
-      fullName: json['full_name'] as String,
-      email: json['email'] as String,
-      phoneNumber: json['phone_number'] as String,
-      neighborhood: json['neighborhood'] as String,
+      id: json['id_utilizador'] as String,
+      fullName: json['nome'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      phoneNumber: json['telefone'] as String? ?? '',
+      neighborhood: json['bairro'] as String? ?? '',
       token: json['token'] as String?,
       reportsSubmitted: json['reports_submitted'] as int? ?? 15,
       reportsResolved: json['reports_resolved'] as int? ?? 8,
       reportsPending: json['reports_pending'] as int? ?? 7,
-      isVerified: json['is_verified'] as bool? ?? true,
+      isVerified: json['estado'] == 'activo',
       points: json['points'] as int? ?? 320,
       level: json['level'] as int? ?? 4,
       badges: (json['badges'] as List<dynamic>?)?.map((e) => e as String).toList() ??
@@ -76,21 +79,12 @@ class ProfileUserModel extends UserEntity {
     );
   }
 
-  Map<String, dynamic> toJson() {
+  /// Apenas os campos editáveis pelo próprio utilizador na tabela "utilizador".
+  Map<String, dynamic> toUpdateJson() {
     return {
-      'id': id,
-      'full_name': fullName,
-      'email': email,
-      'phone_number': phoneNumber,
-      'neighborhood': neighborhood,
-      'token': token,
-      'reports_submitted': reportsSubmitted,
-      'reports_resolved': reportsResolved,
-      'reports_pending': reportsPending,
-      'is_verified': isVerified,
-      'points': points,
-      'level': level,
-      'badges': badges,
+      'nome': fullName,
+      'telefone': phoneNumber,
+      'bairro': neighborhood,
     };
   }
 }

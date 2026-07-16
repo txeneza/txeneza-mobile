@@ -1,3 +1,5 @@
+import '../../../../core/errors/supabase_error_translator.dart';
+import '../../domain/entities/auth_sign_up_result.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
@@ -15,19 +17,14 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     try {
-      final userModel = await _remoteDataSource.login(
-        email: email,
-        password: password,
-      );
-      return userModel;
+      return await _remoteDataSource.login(email: email, password: password);
     } catch (e) {
-      // Repassa a mensagem do erro ou lança uma genérica
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(SupabaseErrorTranslator.translate(e));
     }
   }
 
   @override
-  Future<UserEntity> signUp({
+  Future<AuthSignUpResult> signUp({
     required String fullName,
     required String email,
     required String password,
@@ -35,16 +32,37 @@ class AuthRepositoryImpl implements AuthRepository {
     required String neighborhood,
   }) async {
     try {
-      final userModel = await _remoteDataSource.signUp(
+      final result = await _remoteDataSource.signUp(
         fullName: fullName,
         email: email,
         password: password,
         phoneNumber: phoneNumber,
         neighborhood: neighborhood,
       );
-      return userModel;
+      return AuthSignUpResult(
+        user: result.user,
+        needsEmailConfirmation: result.needsEmailConfirmation,
+      );
     } catch (e) {
-      throw Exception(e.toString().replaceAll('Exception: ', ''));
+      throw Exception(SupabaseErrorTranslator.translate(e));
+    }
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    try {
+      await _remoteDataSource.signInWithGoogle();
+    } catch (e) {
+      throw Exception(SupabaseErrorTranslator.translate(e));
+    }
+  }
+
+  @override
+  Future<void> logout() async {
+    try {
+      await _remoteDataSource.logout();
+    } catch (e) {
+      throw Exception(SupabaseErrorTranslator.translate(e));
     }
   }
 
@@ -56,4 +74,7 @@ class AuthRepositoryImpl implements AuthRepository {
       throw Exception('Não foi possível carregar a lista de bairros.');
     }
   }
+
+  @override
+  Stream<UserEntity> get onExternalSignIn => _remoteDataSource.onSignedIn;
 }

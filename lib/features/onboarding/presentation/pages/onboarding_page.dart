@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:preload_page_view/preload_page_view.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/routes/app_routes.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/spacing/app_radius.dart';

@@ -70,5 +70,16 @@
 	<string>Precisamos de acesso à câmara para fotografar os pontos de lixo.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Precisamos de acesso à sua localização para marcar no mapa onde está o lixo.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.txeneza.app.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>io.txeneza.app</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

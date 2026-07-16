@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../map/domain/occurrence_model.dart';
 import '../widgets/my_reports_view.dart';

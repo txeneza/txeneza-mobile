@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../../core/theme/colors/app_colors.dart';
 import '../../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../auth/presentation/widgets/custom_text_field.dart';

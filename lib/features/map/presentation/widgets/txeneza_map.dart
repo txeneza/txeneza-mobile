@@ -197,8 +197,10 @@ class _TxenezaMapState extends State<TxenezaMap> with TickerProviderStateMixin {
       return widget.occurrences.map((occ) {
         return Marker(
           point: occ.position,
-          width: 44,
-          height: 44,
+          width: 40,
+          height: 50,
+          // topCenter faz a ponta inferior do pin apontar a coordenada exata.
+          alignment: Alignment.topCenter,
           child: OccurrenceMarkerWidget(
             occurrence: occ,
             currentScale: widget.currentScale,
@@ -219,8 +221,8 @@ class _TxenezaMapState extends State<TxenezaMap> with TickerProviderStateMixin {
 
     return Marker(
       point: coords,
-      width: 48,
-      height: 48,
+      width: 52,
+      height: 52,
       child: OccurrenceMarkerWidget(
         clusterCount: items.length,
         clusterStatus: clusterStatus,

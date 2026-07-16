@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/theme_controller/theme_provider.dart';
 import 'core/theme/theme_data/light_theme.dart';
 import 'core/theme/theme_data/dark_theme.dart';
@@ -33,13 +34,9 @@ class _AppState extends State<App> {
       if (isFirstTime) {
         return AppRoutes.onboarding;
       }
-      
-      final sessionJson = prefs.getString('mock_user_session');
-      if (sessionJson == null) {
-        return AppRoutes.login;
-      }
-      
-      return AppRoutes.home;
+
+      final hasSession = Supabase.instance.client.auth.currentSession != null;
+      return hasSession ? AppRoutes.home : AppRoutes.login;
     } catch (e) {
       return AppRoutes.onboarding;
     }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/routes/app_routes.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
@@ -77,8 +77,7 @@ class _ProfilePageState extends State<ProfilePage> {
             TextButton(
               onPressed: () async {
                 Navigator.of(context).pop();
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.remove('mock_user_session');
+                await Supabase.instance.client.auth.signOut();
                 if (mounted) {
                   Navigator.of(context).pushNamedAndRemoveUntil(
                     AppRoutes.login,

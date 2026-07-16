@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';

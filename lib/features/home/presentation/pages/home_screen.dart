@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 
@@ -37,9 +37,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   double _currentScale = 12.5;
   bool _isResolvingGps = false;
   final LatLng _userLocation = const LatLng(-19.8300, 34.8400); // Ponta Gêa, Beira
-
-  // FAB animation state
-  bool _isFabPressed = false;
 
   // Complete list of occurrences (Online)
   final List<Occurrence> _allOccurrences = const [
@@ -307,9 +304,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Show FAB only on map-related tabs (Início & Mapa de Calor)
-    final showFAB = _selectedBottomIndex == 0 || _selectedBottomIndex == 1;
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -342,6 +336,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         },
                         onMapModeToggled: _onMapModeToggled,
                         onLocationPressed: _onLocationPressed,
+                        onReport: _onDenunciarPressed,
+                        onOccurrenceSelected: (occ) =>
+                            _animateMapTo(occ.position, 16.0),
                       ),
 
                       // Tab 2: AI Assistant View
@@ -419,73 +416,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
           ],
         ),
-
-        // Primary Action FAB Button (Camera + Denunciar)
-        floatingActionButton: showFAB
-            ? Padding(
-                padding: const EdgeInsets.only(bottom: 8.0, right: 4.0),
-                child: GestureDetector(
-                  onTapDown: (_) {
-                    setState(() {
-                      _isFabPressed = true;
-                    });
-                  },
-                  onTapUp: (_) {
-                    setState(() {
-                      _isFabPressed = false;
-                    });
-                    _onDenunciarPressed();
-                  },
-                  onTapCancel: () {
-                    setState(() {
-                      _isFabPressed = false;
-                    });
-                  },
-                  child: AnimatedScale(
-                    scale: _isFabPressed ? 0.96 : 1.0,
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOutCubic,
-                    child: Container(
-                      width: 154,
-                      height: 54,
-                      decoration: BoxDecoration(
-                        color: _isFabPressed 
-                            ? (Color.lerp(AppColors.forestGreen, Colors.black, 0.15) ?? AppColors.forestGreen)
-                            : AppColors.forestGreen,
-                        borderRadius: BorderRadius.circular(27),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.forestGreen.withValues(alpha: 0.35),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
-                          )
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            LucideIcons.camera,
-                            color: Colors.white,
-                            size: 18,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Denunciar',
-                            style: TextStyle(
-                              fontFamily: 'Geist',
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            : null,
 
         // Custom Floating Bottom Navigation Bar
         bottomNavigationBar: FloatingBottomNavigationBar(

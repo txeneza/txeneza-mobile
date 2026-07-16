@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
+import 'core/config/env/app_env.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,6 +11,13 @@ void main() async {
   } catch (e) {
     debugPrint('Error loading .env file: $e');
   }
+
+  await Supabase.initialize(
+    url: AppEnv.supabaseUrl,
+    // A chave fornecida é uma publishable key (sb_publishable_...).
+    publishableKey: AppEnv.supabaseAnonKey,
+  );
+
   runApp(const App());
 }
 

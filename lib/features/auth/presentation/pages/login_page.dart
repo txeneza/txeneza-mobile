@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/config/routes/app_routes.dart';
 import '../../../../core/constants/auth_strings.dart';
 import '../../../../core/theme/colors/app_colors.dart';
@@ -12,6 +12,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
 import '../widgets/custom_text_field.dart';
 import '../widgets/auth_header_widget.dart';
+import '../widgets/google_sign_in_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -232,6 +233,13 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                                   )
                                 : const Text(AuthStrings.enterButton),
+                          ),
+                          AppSpacing.verticalSpaceLG,
+
+                          // Login com Google
+                          GoogleSignInButton(
+                            isDark: isDark,
+                            onPressed: isLoading ? null : _controller.signInWithGoogle,
                           ),
                           AppSpacing.verticalSpaceLG,
 

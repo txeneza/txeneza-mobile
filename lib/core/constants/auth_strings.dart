@@ -28,7 +28,13 @@ class AuthStrings {
   static const String hasAccount = 'Já tem uma conta? ';
   static const String loginNow = 'Inicie sessão';
   static const String signUpSuccess = 'Conta criada com sucesso! Por favor, faça o login.';
+  static const String signUpPendingConfirmation = 'Conta criada! Verifique o seu e-mail para confirmar o registo antes de iniciar sessão.';
   static const String signUpError = 'Ocorreu um erro ao criar a conta. Tente novamente.';
+
+  // Login social
+  static const String orDivider = 'ou';
+  static const String continueWithGoogle = 'Continuar com Google';
+  static const String genericAuthError = 'Não foi possível concluir a operação. Tente novamente.';
 
   // Validações
   static const String emailRequired = 'O e-mail é obrigatório.';

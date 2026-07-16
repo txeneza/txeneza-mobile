@@ -12,7 +12,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.8.0 <=3.11.3'
+  sdk: '>=3.8.0 <4.0.0'
 
 # Dependências especificam outros pacotes que seu projeto precisa para funcionar.
 dependencies:
@@ -22,7 +22,9 @@ dependencies:
   # Adiciona a fonte Cupertino Icons ao seu aplicativo.
   # Use com a classe CupertinoIcons para ícones no estilo iOS.
   cupertino_icons: ^1.0.8
-  lucide_icons: ^0.257.0
+  # lucide_icons (0.257.0) está abandonado e não compila em Flutter recente:
+  # estende IconData, que passou a ser uma final class.
+  lucide_icons_flutter: ^3.1.15
   rive: ^0.14.9
   preload_page_view: ^0.2.0
   google_fonts: ^8.1.0
@@ -34,6 +36,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   flutter_dotenv: ^5.2.1
   http: ^1.6.0
+  supabase_flutter: ^2.10.3
 
 dev_dependencies:
   flutter_test:

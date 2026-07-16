@@ -17,6 +17,11 @@ class AuthSuccess extends AuthState {
   const AuthSuccess(this.user);
 }
 
+class AuthSignUpPendingConfirmation extends AuthState {
+  final UserEntity user;
+  const AuthSignUpPendingConfirmation(this.user);
+}
+
 class AuthError extends AuthState {
   final String message;
   const AuthError(this.message);
