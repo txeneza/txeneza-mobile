@@ -113,7 +113,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: _problemType,
+                        initialValue: _problemType,
                         dropdownColor: isDark ? const Color(0xFF1E2F2C) : Colors.white,
                         style: TextStyle(
                           fontFamily: 'Geist',

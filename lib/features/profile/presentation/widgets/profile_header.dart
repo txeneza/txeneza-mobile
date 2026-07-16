@@ -14,6 +14,17 @@ class ProfileHeader extends StatelessWidget {
     required this.isVerified,
   });
 
+  String _getInitials(String name) {
+    if (name.isEmpty) return 'U';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    final first = parts.first[0];
+    final last = parts.last[0];
+    return '$first$last'.toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -47,6 +58,38 @@ class ProfileHeader extends StatelessWidget {
           ),
           child: Column(
             children: [
+              // Avatar com Iniciais
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    width: 2,
+                  ),
+                ),
+                child: CircleAvatar(
+                  radius: 36,
+                  backgroundColor: isDark ? AppColors.forestGreen : AppColors.mintGreen,
+                  child: Text(
+                    _getInitials(fullName),
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Nome do utilizador
               Text(
                 fullName,

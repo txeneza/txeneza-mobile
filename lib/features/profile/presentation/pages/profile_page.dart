@@ -13,6 +13,7 @@ import '../widgets/profile_info_card.dart';
 import '../widgets/profile_quick_access.dart';
 import '../widgets/profile_stats_grid.dart';
 import '../widgets/profile_support_section.dart';
+import '../widgets/profile_settings_section.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -217,21 +218,20 @@ class _ProfilePageState extends State<ProfilePage> {
                       phoneNumber: phoneNumber,
                       neighborhood: neighborhood,
                     );
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            success
-                                ? 'Perfil atualizado com sucesso.'
-                                : 'Erro ao atualizar dados. Tente novamente.',
-                            style: const TextStyle(fontFamily: 'Geist'),
-                          ),
-                          backgroundColor:
-                              success ? AppColors.success : AppColors.error,
-                          behavior: SnackBarBehavior.floating,
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          success
+                              ? 'Perfil atualizado com sucesso.'
+                              : 'Erro ao atualizar dados. Tente novamente.',
+                          style: const TextStyle(fontFamily: 'Geist'),
                         ),
-                      );
-                    }
+                        backgroundColor:
+                            success ? AppColors.success : AppColors.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(height: 16),
@@ -242,6 +242,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 const SizedBox(height: 16),
                 const ProfileQuickAccess(),
+                const SizedBox(height: 16),
+                const ProfileSettingsSection(),
                 const SizedBox(height: 16),
                 const ProfileSupportSection(),
                 const SizedBox(height: 16),

@@ -21,6 +21,8 @@ void main() async {
     publishableKey: AppEnv.supabaseAnonKey,
   );
 
+  await themeProvider.init();
+
   runApp(const App());
 }
 
