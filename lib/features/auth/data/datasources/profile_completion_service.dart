@@ -38,7 +38,6 @@ class ProfileCompletionService {
     }
   }
 
-  /// Grava o bairro (e telefone, se fornecido) do perfil actual.
   Future<void> completeProfile({
     required String bairro,
     String? telefone,
@@ -48,9 +47,19 @@ class ProfileCompletionService {
       throw Exception('Sessão expirada. Inicie sessão novamente.');
     }
 
-    await _client.from('utilizador').update({
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    final name = (metadata['nome'] ??
+        metadata['full_name'] ??
+        metadata['name'] ??
+        user.email?.split('@').first ??
+        'Utilizador') as String;
+
+    await _client.from('utilizador').upsert({
+      'id_utilizador': user.id,
+      'nome': name,
+      'email': user.email ?? '',
       'bairro': bairro,
       if (telefone != null && telefone.isNotEmpty) 'telefone': telefone,
-    }).eq('id_utilizador', user.id);
+    });
   }
 }

@@ -66,6 +66,7 @@ class AuthRemoteDataSource {
       OAuthProvider.google,
       redirectTo: _googleRedirectUrl,
       authScreenLaunchMode: LaunchMode.inAppBrowserView,
+      queryParams: {'prompt': 'select_account'},
     );
   }
 

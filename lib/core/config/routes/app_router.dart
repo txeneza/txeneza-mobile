@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../features/auth/data/datasources/profile_completion_service.dart';
 import 'app_routes.dart';
 import '../../../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../../../features/onboarding/presentation/pages/permission.dart';
@@ -19,7 +23,20 @@ class AppRouter {
   AppRouter._();
 
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
-    switch (settings.name) {
+    final routeName = settings.name ?? '';
+
+    // Tratar rotas de redirecionamento do Supabase (deep linking)
+    if (routeName == '/' ||
+        routeName.startsWith('/?') ||
+        routeName.startsWith('txeneza://') ||
+        routeName.startsWith('io.txeneza.app://')) {
+      return MaterialPageRoute(
+        settings: settings,
+        builder: (_) => const InitialRouteScreen(),
+      );
+    }
+
+    switch (routeName) {
       case AppRoutes.onboarding:
         return MaterialPageRoute(
           settings: settings,
@@ -107,5 +124,65 @@ class AppRouter {
           ),
         );
     }
+  }
+}
+
+class InitialRouteScreen extends StatefulWidget {
+  const InitialRouteScreen({super.key});
+
+  @override
+  State<InitialRouteScreen> createState() => _InitialRouteScreenState();
+}
+
+class _InitialRouteScreenState extends State<InitialRouteScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _routeUser();
+  }
+
+  Future<void> _routeUser() async {
+    // Pequeno atraso para dar tempo ao Supabase de processar o deep link
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isFirstTime = prefs.getBool('is_first_time') ?? true;
+      if (!mounted) return;
+      if (isFirstTime) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.onboarding);
+        return;
+      }
+
+      final hasSession = Supabase.instance.client.auth.currentSession != null;
+      if (!mounted) return;
+      if (!hasSession) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+        return;
+      }
+
+      final needsCompletion = await ProfileCompletionService().needsCompletion();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed(
+        needsCompletion ? AppRoutes.completeProfile : AppRoutes.home,
+      );
+    } catch (_) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.forestGreen,
+      body: Center(
+        child: CircularProgressIndicator(
+          color: AppColors.limeGreen,
+        ),
+      ),
+    );
   }
 }

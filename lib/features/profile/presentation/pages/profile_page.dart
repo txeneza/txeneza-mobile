@@ -52,7 +52,11 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (confirm != true || !mounted) return;
 
-    await Supabase.instance.client.auth.signOut();
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      debugPrint('Erro ao fazer sign out: $e');
+    }
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil(
       AppRoutes.login,

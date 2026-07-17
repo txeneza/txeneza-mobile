@@ -49,6 +49,7 @@ dev_dependencies:
   # O pacote "flutter_lints" contém um conjunto de regras de análise recomendadas
   # para incentivar boas práticas de programação.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # Esta seção é específica para configurações do Flutter.
 flutter:
@@ -62,3 +63,11 @@ flutter:
     - assets/icons/
     - assets/fonts/
     - .env
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/images/TXENEZA.png"
+  image_path: "assets/images/TXENEZA.png"

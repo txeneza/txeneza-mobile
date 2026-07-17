@@ -7,6 +7,7 @@ import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/colors/light_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
+import '../../data/datasources/profile_completion_service.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/auth_state.dart';
@@ -87,7 +88,7 @@ class _SignUpPageState extends State<SignUpPage> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.of(context).pushReplacementNamed(AppRoutes.home);
+      _goToNextScreen();
     } else if (state is AuthSuccess || state is AuthSignUpPendingConfirmation) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -111,6 +112,14 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       );
     }
+  }
+
+  Future<void> _goToNextScreen() async {
+    final needsCompletion = await ProfileCompletionService().needsCompletion();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(
+      needsCompletion ? AppRoutes.completeProfile : AppRoutes.home,
+    );
   }
 
   String? _validateName(String? value) {
