@@ -36,6 +36,13 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="io.txeneza.app" android:host="login-callback"/>
             </intent-filter>
+            <!-- Deep link para abertura a partir da landing page do site -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="txeneza"/>
+            </intent-filter>
         </activity>
         <!-- O deep link do OAuth é tratado pelo supabase_flutter (via app_links),
              não pelo Navigator. Sem isto, o Flutter entrega o URI de retorno ao
