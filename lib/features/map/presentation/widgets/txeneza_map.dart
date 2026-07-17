@@ -6,6 +6,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/config/env/app_env.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../domain/occurrence_model.dart';
 import '../../domain/ponto_recolha_model.dart';
@@ -109,9 +110,9 @@ class _TxenezaMapState extends State<TxenezaMap> {
   void _updateStyle() {
     if (_mapboxMap == null) return;
     final styleUri = switch (widget.mapMode) {
-      MapMode.normal => MapboxStyles.LIGHT,
-      MapMode.satellite => MapboxStyles.SATELLITE_STREETS,
-      MapMode.heatmap => MapboxStyles.DARK,
+      MapMode.normal => AppEnv.mapboxStyleNormal,
+      MapMode.satellite => AppEnv.mapboxStyleSatellite,
+      MapMode.heatmap => AppEnv.mapboxStyleHeatmap,
     };
     _mapboxMap!.loadStyleURI(styleUri);
   }
@@ -212,7 +213,7 @@ class _TxenezaMapState extends State<TxenezaMap> {
           final options = PointAnnotationOptions(
             geometry: Point(coordinates: Position(ponto.position.longitude, ponto.position.latitude)),
             image: pontoRecolhaImage,
-            iconSize: 0.5,
+            iconSize: 0.58,
           );
           final annotation = await _pointAnnotationManager!.create(options);
           _annotationPayloads[annotation.id] = ponto;
@@ -364,43 +365,71 @@ class _TxenezaMapState extends State<TxenezaMap> {
   }
 
   Future<Uint8List> _generatePontoRecolhaMarker({
-    double width = 72.0,
-    double height = 72.0,
+    double width = 150.0,
+    double height = 150.0,
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     final double center = width / 2;
+    final double radius = (width / 2) - 10;
 
-    canvas.drawCircle(
-      Offset(center, center),
-      center - 4,
-      Paint()..color = Colors.white,
-    );
+    // Brilho exterior (sombra de neon em tons de verde)
+    final glowPaint = Paint()
+      ..color = AppColors.limeGreen.withValues(alpha: 0.45)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(center, center), radius + 8, glowPaint);
 
-    canvas.drawCircle(
-      Offset(center, center),
-      center - 4,
-      Paint()
-        ..color = AppColors.forestGreen
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.0,
-    );
+    final outerRingPaint = Paint()
+      ..color = AppColors.forestGreen
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(center, center), radius + 2, outerRingPaint);
 
-    final textPainter = TextPainter(textDirection: TextDirection.ltr);
-    textPainter.text = TextSpan(
-      text: String.fromCharCode(LucideIcons.trash2.codePoint),
-      style: TextStyle(
-        fontSize: 32,
-        fontFamily: LucideIcons.trash2.fontFamily,
-        package: LucideIcons.trash2.fontPackage,
-        color: AppColors.forestGreen,
-      ),
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(center - textPainter.width / 2, center - textPainter.height / 2),
-    );
+    // Círculo branco de fundo
+    final bgPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(center, center), radius - 2, bgPaint);
+
+    try {
+      // Carrega o logótipo oficial TXENEZA
+      final data = await DefaultAssetBundle.of(context).load('assets/images/TXENEZA.png');
+      final bytes = data.buffer.asUint8List();
+      final codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: (radius * 1.5).toInt(),
+        targetHeight: (radius * 1.5).toInt(),
+      );
+      final frame = await codec.getNextFrame();
+      final ui.Image logoImage = frame.image;
+
+      final double logoSize = radius * 1.5;
+      final double logoOffset = center - (logoSize / 2);
+
+      // Recorta a imagem para o interior do círculo
+      canvas.save();
+      final clipPath = Path()..addOval(Rect.fromCircle(center: Offset(center, center), radius: radius - 3));
+      canvas.clipPath(clipPath);
+
+      canvas.drawImage(logoImage, Offset(logoOffset, logoOffset), Paint());
+      canvas.restore();
+    } catch (e) {
+      // Fallback elegante se falhar
+      final textPainter = TextPainter(textDirection: TextDirection.ltr);
+      textPainter.text = TextSpan(
+        text: String.fromCharCode(LucideIcons.trash2.codePoint),
+        style: TextStyle(
+          fontSize: 48,
+          fontFamily: LucideIcons.trash2.fontFamily,
+          package: LucideIcons.trash2.fontPackage,
+          color: AppColors.forestGreen,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(
+        canvas,
+        Offset(center - textPainter.width / 2, center - textPainter.height / 2),
+      );
+    }
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(width.toInt(), height.toInt());
@@ -411,9 +440,9 @@ class _TxenezaMapState extends State<TxenezaMap> {
   @override
   Widget build(BuildContext context) {
     final styleUri = switch (widget.mapMode) {
-      MapMode.normal => MapboxStyles.LIGHT,
-      MapMode.satellite => MapboxStyles.SATELLITE_STREETS,
-      MapMode.heatmap => MapboxStyles.DARK,
+      MapMode.normal => AppEnv.mapboxStyleNormal,
+      MapMode.satellite => AppEnv.mapboxStyleSatellite,
+      MapMode.heatmap => AppEnv.mapboxStyleHeatmap,
     };
 
     return MapWidget(

@@ -17,7 +17,6 @@ class ProfileSupportSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Material(
         color: isDark ? DarkColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(

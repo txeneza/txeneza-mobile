@@ -18,4 +18,13 @@ class AppEnv {
 
   static String get supabaseAnonKey =>
       dotenv.get('SUPABASE_ANON_KEY', fallback: '');
+
+  static String get mapboxStyleNormal =>
+      dotenv.get('MAPBOX_STYLE_NORMAL', fallback: 'mapbox://styles/tivanepaulo2/cmrovy6jx005q01qt1jb91owi');
+
+  static String get mapboxStyleSatellite =>
+      dotenv.get('MAPBOX_STYLE_SATELLITE', fallback: 'mapbox://styles/mapbox/satellite-streets-v12');
+
+  static String get mapboxStyleHeatmap =>
+      dotenv.get('MAPBOX_STYLE_HEATMAP', fallback: 'mapbox://styles/mapbox/dark-v11');
 }

@@ -23,81 +23,96 @@ class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
       bottom: false,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Container(
-            height: 56,
-            decoration: BoxDecoration(
-              color: isDark 
-                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.95) 
-                  : Colors.white.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: isDark 
-                      ? Colors.white.withValues(alpha: 0.12) 
-                      : Colors.black.withValues(alpha: 0.08),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: isDark 
-                        ? Colors.black.withValues(alpha: 0.15) 
-                        : Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Logo & Title
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SvgPicture.asset(
-                        AppIcons.logo,
-                        width: 24,
-                        height: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      RichText(
-                        text: TextSpan(
-                          style: TextStyle(
-                            fontFamily: 'Geist',
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            color: isDark ? Colors.white : AppColors.forestGreen,
-                          ),
-                          children: [
-                            const TextSpan(text: 'T'),
-                            TextSpan(
-                              text: 'x',
-                              style: TextStyle(
-                                color: isDark ? AppColors.lightLime : AppColors.limeGreen,
-                              ),
-                            ),
-                            const TextSpan(text: 'eneza'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Right side connectivity indicator
-                  ConnectivityIndicator(
-                    isOnline: isOnline,
-                    onTap: onConnectivityTap,
-                  ),
-                ],
-              ),
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF1A1A1A)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFE8E5DD),
+              width: 1,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
+              ),
+              if (!isDark)
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 6,
+                  offset: const Offset(0, 1),
+                ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Logo & Title
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Ícone SVG com fundo circular subtil
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.forestGreen.withValues(alpha: isDark ? 0.15 : 0.08),
+                    ),
+                    padding: const EdgeInsets.all(5),
+                    child: SvgPicture.asset(
+                      AppIcons.logo,
+                      width: 22,
+                      height: 22,
+                      colorFilter: ColorFilter.mode(
+                        isDark ? AppColors.limeGreen : AppColors.forestGreen,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  RichText(
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                        color: isDark ? Colors.white : AppColors.forestGreen,
+                      ),
+                      children: [
+                        const TextSpan(text: 'T'),
+                        TextSpan(
+                          text: 'x',
+                          style: TextStyle(
+                            color: isDark ? AppColors.lightLime : AppColors.limeGreen,
+                          ),
+                        ),
+                        const TextSpan(text: 'eneza'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              // Right side connectivity indicator
+              ConnectivityIndicator(
+                isOnline: isOnline,
+                onTap: onConnectivityTap,
+              ),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(72.0); // 56 height + 16 vertical padding
+  Size get preferredSize => const Size.fromHeight(72.0);
 }

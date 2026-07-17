@@ -390,49 +390,49 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             if (!_isOnline && _selectedBottomIndex != 2 && _selectedBottomIndex != 3)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 76.0,
-                left: 16,
-                right: 16,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  height: 36,
+                left: 20,
+                right: 20,
+                child: Container(
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFB300),
-                    borderRadius: BorderRadius.circular(18),
+                    color: isDark
+                        ? const Color(0xFF3D2E00)
+                        : const Color(0xFFFFF3D6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFFFFB300).withValues(alpha: 0.25)
+                          : const Color(0xFFFFD54F).withValues(alpha: 0.6),
+                      width: 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
                         blurRadius: 8,
-                        offset: const Offset(0, 3),
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  child: const ClipRect(
-                    child: Align(
-                      alignment: Alignment.center,
-                      widthFactor: 1.0,
-                      heightFactor: 1.0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            LucideIcons.wifiOff,
-                            color: AppColors.forestGreen,
-                            size: 14,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'Modo Offline. Pontos salvos na última sincronização.',
-                            style: TextStyle(
-                              fontFamily: 'Geist',
-                              color: AppColors.forestGreen,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        LucideIcons.wifiOff,
+                        color: isDark ? const Color(0xFFFFD54F) : const Color(0xFF8D6E00),
+                        size: 14,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Modo Offline — dados da última sincronização',
+                        style: TextStyle(
+                          fontFamily: 'Geist',
+                          color: isDark ? const Color(0xFFFFD54F) : const Color(0xFF5D4900),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -518,22 +518,31 @@ class _FloatingLocationButtonState extends State<FloatingLocationButton> with Si
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Container(
       width: 44,
       height: 44,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFE8E5DD),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Color(0x24000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          )
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
         ],
       ),
       child: Material(
-        color: Colors.white.withValues(alpha: 0.92),
+        color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
         shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: widget.onPressed,
@@ -547,9 +556,9 @@ class _FloatingLocationButtonState extends State<FloatingLocationButton> with Si
                       size: 20,
                     ),
                   )
-                : const Icon(
+                : Icon(
                     LucideIcons.locate,
-                    color: Color(0xFF424242),
+                    color: isDark ? Colors.white70 : const Color(0xFF424242),
                     size: 20,
                   ),
           ),
@@ -558,3 +567,4 @@ class _FloatingLocationButtonState extends State<FloatingLocationButton> with Si
     );
   }
 }
+
