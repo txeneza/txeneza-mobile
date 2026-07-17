@@ -4,11 +4,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/theme_controller/theme_provider.dart';
 import 'core/theme/theme_data/light_theme.dart';
 import 'core/theme/theme_data/dark_theme.dart';
-import 'core/theme/colors/app_colors.dart';
 
 import 'core/config/routes/app_routes.dart';
 import 'core/config/routes/app_router.dart';
 import 'features/auth/data/datasources/profile_completion_service.dart';
+import 'features/onboarding/presentation/pages/splash_screen.dart';
 
 final themeProvider = ThemeProvider();
 
@@ -62,14 +62,7 @@ class _AppState extends State<App> {
                 theme: lightTheme,
                 darkTheme: darkTheme,
                 themeMode: themeProvider.themeMode,
-                home: const Scaffold(
-                  backgroundColor: AppColors.forestGreen,
-                  body: Center(
-                    child: CircularProgressIndicator(
-                      color: AppColors.limeGreen,
-                    ),
-                  ),
-                ),
+                home: const SplashScreen(),
               );
             }
 

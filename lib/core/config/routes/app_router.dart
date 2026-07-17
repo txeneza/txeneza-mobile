@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../features/auth/data/datasources/profile_completion_service.dart';
+import '../../../../features/onboarding/presentation/pages/splash_screen.dart';
 import 'app_routes.dart';
 import '../../../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../../../features/onboarding/presentation/pages/permission.dart';
@@ -176,13 +176,6 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.forestGreen,
-      body: Center(
-        child: CircularProgressIndicator(
-          color: AppColors.limeGreen,
-        ),
-      ),
-    );
+    return const SplashScreen();
   }
 }
