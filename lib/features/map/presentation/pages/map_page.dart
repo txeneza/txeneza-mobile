@@ -24,6 +24,8 @@ class MapPage extends StatelessWidget {
   final VoidCallback onLocationPressed;
   final VoidCallback onReport;
   final ValueChanged<Occurrence> onOccurrenceSelected;
+  final bool showPontosRecolha;
+  final ValueChanged<bool> onShowPontosRecolhaToggled;
 
   const MapPage({
     super.key,
@@ -40,6 +42,8 @@ class MapPage extends StatelessWidget {
     required this.onLocationPressed,
     required this.onReport,
     required this.onOccurrenceSelected,
+    required this.showPontosRecolha,
+    required this.onShowPontosRecolhaToggled,
   });
 
   @override
@@ -115,6 +119,8 @@ class MapPage extends StatelessWidget {
               onReport: onReport,
               onOccurrenceTap: onOccurrenceSelected,
               collapsedSize: collapsedSize,
+              showPontosRecolha: showPontosRecolha,
+              onShowPontosRecolhaToggled: onShowPontosRecolhaToggled,
             ),
           ],
         );

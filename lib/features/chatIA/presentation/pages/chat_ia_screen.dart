@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/icons/app_icons.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
 import '../../data/conversacao_datasource.dart';
@@ -248,9 +249,9 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
         final response = await _geminiService.sendMessage(text, history: history);
         if (mounted) {
           setState(() {
-            _messages.add({'text': response, 'isUser': false, 'time': 'Agora'});
             _isTyping = false;
           });
+          await _simulateTypewriter(response);
         }
         // Persiste a troca no Supabase (não bloqueia a UI).
         _conversacao.save(mensagem: text, resposta: response);
@@ -274,6 +275,43 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     _scrollToBottom();
   }
 
+  Future<void> _simulateTypewriter(String fullText) async {
+    final Map<String, dynamic> botMessage = {
+      'text': '',
+      'isUser': false,
+      'time': 'Agora',
+    };
+
+    setState(() {
+      _messages.add(botMessage);
+    });
+
+    final completer = Completer<void>();
+    int charIndex = 0;
+
+    Timer.periodic(const Duration(milliseconds: 15), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        completer.complete();
+        return;
+      }
+
+      setState(() {
+        if (charIndex < fullText.length) {
+          final increment = (fullText.length - charIndex) > 3 ? 3 : (fullText.length - charIndex);
+          botMessage['text'] = fullText.substring(0, charIndex + increment);
+          charIndex += increment;
+          _scrollToBottom();
+        } else {
+          timer.cancel();
+          completer.complete();
+        }
+      });
+    });
+
+    return completer.future;
+  }
+
   void _openImageSelectionModal() {
     showModalBottomSheet(
       context: context,
@@ -282,7 +320,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
       builder: (context) {
         return ImageAnalysisModal(
           geminiService: _geminiService,
-          onAnalysisComplete: (imagePath, analysisResult) {
+          onAnalysisComplete: (imagePath, analysisResult) async {
             setState(() {
               // Mensagem do utilizador com a foto real.
               _messages.add({
@@ -291,14 +329,12 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 'time': 'Agora',
                 'imagePath': imagePath,
               });
-              // Resposta de classificação da Xeni.
-              _messages.add({
-                'text': analysisResult,
-                'isUser': false,
-                'time': 'Agora',
-              });
             });
             _scrollToBottom();
+
+            // Resposta de classificação da Xeni com efeito de digitação.
+            await _simulateTypewriter(analysisResult);
+
             // Persiste no histórico (a imagem em si não é guardada nesta tabela).
             _conversacao.save(
               mensagem: 'Foto do resíduo enviada.',
@@ -319,6 +355,24 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
       backgroundColor: isDark ? AppColors.black : const Color(0xFFF4F2EB),
       body: Stack(
         children: [
+          // Wallpaper SVG da Txeneza
+          Positioned.fill(
+            child: Center(
+              child: Opacity(
+                opacity: isDark ? 0.03 : 0.05,
+                child: SvgPicture.asset(
+                  AppIcons.logo,
+                  width: MediaQuery.of(context).size.width * 0.5,
+                  fit: BoxFit.contain,
+                  colorFilter: ColorFilter.mode(
+                    isDark ? Colors.white : AppColors.forestGreen,
+                    BlendMode.srcIn,
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           // Background layout
           Column(
             children: [
@@ -470,13 +524,10 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
             top: 0,
             left: 0,
             right: 0,
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.md, 48, AppSpacing.md, AppSpacing.sm),
-                  decoration: BoxDecoration(
-                    color: (isDark ? AppColors.black : const Color(0xFFF4F2EB)).withValues(alpha: 0.75),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, 48, AppSpacing.md, AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: (isDark ? AppColors.black : const Color(0xFFF4F2EB)).withValues(alpha: 0.95),
                     border: Border(
                       bottom: BorderSide(
                         color: isDark ? AppColors.grey800.withValues(alpha: 0.5) : AppColors.grey300.withValues(alpha: 0.5),
@@ -646,8 +697,6 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                     ],
                   ),
                 ),
-              ),
-            ),
           ),
         ],
       ),

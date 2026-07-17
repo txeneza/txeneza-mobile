@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../../core/theme/colors/app_colors.dart';
@@ -26,14 +25,12 @@ class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-            child: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                color: isDark 
-                    ? const Color(0xFF1E1E1E).withValues(alpha: 0.65) 
-                    : Colors.white.withValues(alpha: 0.65),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.95) 
+                  : Colors.white.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(
                   color: isDark 
@@ -98,8 +95,7 @@ class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 
   @override

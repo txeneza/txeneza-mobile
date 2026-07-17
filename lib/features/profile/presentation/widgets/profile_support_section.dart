@@ -15,61 +15,65 @@ class ProfileSupportSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: isDark ? DarkColors.surface : Colors.white,
+      child: Material(
+        color: isDark ? DarkColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+          side: BorderSide(
             color: isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.grey200,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Suporte',
-              style: TextStyle(
-                fontFamily: 'Geist',
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : AppColors.forestGreen,
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Suporte',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.forestGreen,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-
-            // Ajuda / FAQ
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.helpCircle,
-              title: 'Ajuda / FAQ',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.helpFaq),
-            ),
-            _divider(isDark),
-
-            // Reportar problema
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.alertCircle,
-              title: 'Reportar problema',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.reportProblem),
-            ),
-            _divider(isDark),
-
-            // Contacto
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.messageSquare,
-              title: 'Contacto',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.contact),
-            ),
-          ],
+              const SizedBox(height: 12),
+  
+              // Ajuda / FAQ
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.helpCircle,
+                title: 'Ajuda / FAQ',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.helpFaq),
+              ),
+              _divider(isDark),
+  
+              // Reportar problema
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.alertCircle,
+                title: 'Reportar problema',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.reportProblem),
+              ),
+              _divider(isDark),
+  
+              // Contacto
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.messageSquare,
+                title: 'Contacto',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.contact),
+              ),
+            ],
+          ),
         ),
       ),
     );

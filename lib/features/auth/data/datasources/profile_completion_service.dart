@@ -54,12 +54,11 @@ class ProfileCompletionService {
         user.email?.split('@').first ??
         'Utilizador') as String;
 
-    await _client.from('utilizador').upsert({
-      'id_utilizador': user.id,
+    await _client.from('utilizador').update({
       'nome': name,
       'email': user.email ?? '',
       'bairro': bairro,
       if (telefone != null && telefone.isNotEmpty) 'telefone': telefone,
-    });
+    }).eq('id_utilizador', user.id);
   }
 }

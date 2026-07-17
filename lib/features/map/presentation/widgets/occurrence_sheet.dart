@@ -17,6 +17,8 @@ class OccurrenceSheet extends StatelessWidget {
 
   /// Fração da altura disponível ocupada quando recolhido.
   final double collapsedSize;
+  final bool showPontosRecolha;
+  final ValueChanged<bool> onShowPontosRecolhaToggled;
 
   const OccurrenceSheet({
     super.key,
@@ -26,6 +28,8 @@ class OccurrenceSheet extends StatelessWidget {
     required this.onReport,
     required this.onOccurrenceTap,
     required this.collapsedSize,
+    required this.showPontosRecolha,
+    required this.onShowPontosRecolhaToggled,
   });
 
   @override
@@ -75,6 +79,8 @@ class OccurrenceSheet extends StatelessWidget {
                   pendentes: pendentes,
                   resolvidas: resolvidas,
                   onReport: onReport,
+                  showPontosRecolha: showPontosRecolha,
+                  onShowPontosRecolhaToggled: onShowPontosRecolhaToggled,
                 ),
               ),
               SliverList(
@@ -108,6 +114,8 @@ class _Header extends StatelessWidget {
   final int pendentes;
   final int resolvidas;
   final VoidCallback onReport;
+  final bool showPontosRecolha;
+  final ValueChanged<bool> onShowPontosRecolhaToggled;
 
   const _Header({
     required this.isDark,
@@ -117,6 +125,8 @@ class _Header extends StatelessWidget {
     required this.pendentes,
     required this.resolvidas,
     required this.onReport,
+    required this.showPontosRecolha,
+    required this.onShowPontosRecolhaToggled,
   });
 
   @override
@@ -160,7 +170,46 @@ class _Header extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
-                    _SyncBadge(isOnline: isOnline),
+                    Row(
+                      children: [
+                        _SyncBadge(isOnline: isOnline),
+                        if (mapMode != MapMode.heatmap) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 4,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isDark ? Colors.white38 : AppColors.grey300,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => onShowPontosRecolhaToggled(!showPontosRecolha),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  showPontosRecolha ? LucideIcons.eye : LucideIcons.eyeOff,
+                                  size: 13,
+                                  color: showPontosRecolha ? AppColors.forestGreen : AppColors.grey600,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Pontos de Recolha',
+                                  style: TextStyle(
+                                    fontFamily: 'Geist',
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: showPontosRecolha ? AppColors.forestGreen : AppColors.grey600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),

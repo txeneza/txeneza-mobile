@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
@@ -50,12 +49,10 @@ class FloatingBottomNavigationBar extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(30),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12.0, sigmaY: 12.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              decoration: BoxDecoration(
-                color: (isDark ? DarkColors.surface : Colors.white).withValues(alpha: 0.85),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+            decoration: BoxDecoration(
+              color: (isDark ? DarkColors.surface : Colors.white).withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(30),
                 border: Border.all(
                   color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.08),
@@ -138,7 +135,6 @@ class FloatingBottomNavigationBar extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }

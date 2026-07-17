@@ -16,100 +16,104 @@ class ProfileSettingsSection extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: isDark ? DarkColors.surface : Colors.white,
+      child: Material(
+        color: isDark ? DarkColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+          side: BorderSide(
             color: isDark ? Colors.white.withValues(alpha: 0.06) : AppColors.grey200,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Definições',
-              style: TextStyle(
-                fontFamily: 'Geist',
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : AppColors.forestGreen,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Tema Escuro
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Icon(LucideIcons.moon, color: iconColor, size: 20),
-              title: Text(
-                'Tema Escuro',
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Definições',
                 style: TextStyle(
                   fontFamily: 'Geist',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white : AppColors.grey900,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : AppColors.forestGreen,
                 ),
               ),
-              trailing: ListenableBuilder(
-                listenable: themeProvider,
-                builder: (context, _) {
-                  return Switch(
-                    value: themeProvider.isDarkMode,
-                    thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return AppColors.forestGreen;
-                      }
-                      return AppColors.grey600;
-                    }),
-                    trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return AppColors.sageGreen;
-                      }
-                      return AppColors.grey300;
-                    }),
-                    onChanged: (val) {
-                      themeProvider.toggleTheme();
-                    },
-                  );
-                },
+              const SizedBox(height: 12),
+  
+              // Tema Escuro
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(LucideIcons.moon, color: iconColor, size: 20),
+                title: Text(
+                  'Tema Escuro',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : AppColors.grey900,
+                  ),
+                ),
+                trailing: ListenableBuilder(
+                  listenable: themeProvider,
+                  builder: (context, _) {
+                    return Switch(
+                      value: themeProvider.isDarkMode,
+                      thumbColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return AppColors.forestGreen;
+                        }
+                        return AppColors.grey600;
+                      }),
+                      trackColor: WidgetStateProperty.resolveWith<Color?>((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return AppColors.sageGreen;
+                        }
+                        return AppColors.grey300;
+                      }),
+                      onChanged: (val) {
+                        themeProvider.toggleTheme();
+                      },
+                    );
+                  },
+                ),
               ),
-            ),
-            _divider(isDark),
-
-            // Alterar Password
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.lock,
-              title: 'Alterar Password',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.changePassword),
-            ),
-            _divider(isDark),
-
-            // Política de Privacidade
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.shield,
-              title: 'Política de Privacidade',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.privacyPolicy),
-            ),
-            _divider(isDark),
-
-            // Termos de Uso
-            _buildNavTile(
-              context: context,
-              icon: LucideIcons.fileText,
-              title: 'Termos de Uso',
-              iconColor: iconColor,
-              isDark: isDark,
-              onTap: () => Navigator.of(context).pushNamed(AppRoutes.termsOfUse),
-            ),
-          ],
+              _divider(isDark),
+  
+              // Alterar Password
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.lock,
+                title: 'Alterar Password',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.changePassword),
+              ),
+              _divider(isDark),
+  
+              // Política de Privacidade
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.shield,
+                title: 'Política de Privacidade',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.privacyPolicy),
+              ),
+              _divider(isDark),
+  
+              // Termos de Uso
+              _buildNavTile(
+                context: context,
+                icon: LucideIcons.fileText,
+                title: 'Termos de Uso',
+                iconColor: iconColor,
+                isDark: isDark,
+                onTap: () => Navigator.of(context).pushNamed(AppRoutes.termsOfUse),
+              ),
+            ],
+          ),
         ),
       ),
     );

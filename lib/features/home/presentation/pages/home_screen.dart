@@ -50,6 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // Pontos de recolha oficiais, geridos pelos admins no painel web.
   final _pontoRecolhaDataSource = PontoRecolhaDataSource();
   List<PontoRecolha> _pontosRecolha = [];
+  bool _showPontosRecolha = true;
 
   // Ocorrências reais (Supabase) + fila offline de denúncias.
   final _ocorrenciaDataSource = OcorrenciaDataSource();
@@ -112,7 +113,35 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final pontos = await _pontoRecolhaDataSource.fetchActivos();
       if (!mounted) return;
-      setState(() => _pontosRecolha = pontos);
+      if (pontos.isEmpty) {
+        setState(() {
+          _pontosRecolha = [
+            const PontoRecolha(
+              id: 'pr-1',
+              nome: 'Ecoponto Central do Esturro',
+              position: LatLng(-19.8300, 34.8380),
+              bairro: 'Esturro',
+              horario: '07:00 - 17:00',
+            ),
+            const PontoRecolha(
+              id: 'pr-2',
+              nome: 'Ecoponto da Ponta Gêa',
+              position: LatLng(-19.8500, 34.8450),
+              bairro: 'Ponta Gêa',
+              horario: '08:00 - 18:00',
+            ),
+            const PontoRecolha(
+              id: 'pr-3',
+              nome: 'Ecoponto Rotunda da Munhava',
+              position: LatLng(-19.8150, 34.8250),
+              bairro: 'Munhava',
+              horario: '07:00 - 16:30',
+            ),
+          ];
+        });
+      } else {
+        setState(() => _pontosRecolha = pontos);
+      }
     } catch (e) {
       debugPrint('Falha ao carregar pontos de recolha: $e');
     }
@@ -310,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       MapPage(
                         mapMode: _mapMode,
                         occurrences: _occurrences,
-                        pontosRecolha: _pontosRecolha,
+                        pontosRecolha: _showPontosRecolha ? _pontosRecolha : [],
                         isOnline: _isOnline,
                         onMapCreated: (mapbox.MapboxMap mapboxMap) => _mapboxMap = mapboxMap,
                         currentScale: _currentScale,
@@ -326,6 +355,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         onReport: _onDenunciarPressed,
                         onOccurrenceSelected: (occ) =>
                             _animateMapTo(occ.position, 16.0),
+                        showPontosRecolha: _showPontosRecolha,
+                        onShowPontosRecolhaToggled: (val) {
+                          setState(() {
+                            _showPontosRecolha = val;
+                          });
+                        },
                       ),
 
                       // Tab 2: AI Assistant View

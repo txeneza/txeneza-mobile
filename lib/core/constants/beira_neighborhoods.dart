@@ -1,3 +1,7 @@
+/// Lista dos bairros oficiais da Cidade da Beira, Moçambique.
+///
+/// Ordenada alfabeticamente. Nomes com grafias variantes (ex.: "Marraza"
+/// e "Maraza", "Macurti" e "Macuti") foram unificados numa única forma.
 class BeiraNeighborhoods {
   BeiraNeighborhoods._();
 
@@ -10,23 +14,18 @@ class BeiraNeighborhoods {
     'Chipangara',
     'Chota',
     'Estoril',
-    'Estorril',
     'Esturro',
     'Goto',
     'Inhamizua',
     'Macurungo',
-    'Macurti',
     'Macuti',
     'Manga',
     'Manga Mascarenha',
     'Maraza',
-    'Marraza',
-    'Mascarenha',
     'Matacuane',
     'Matadouro',
     'Matope',
     'Muave',
-    'Munassa',
     'Mungassa',
     'Munhava',
     'Ndunda',
@@ -36,7 +35,6 @@ class BeiraNeighborhoods {
     'Pioneiros',
     'Ponta Gêa',
     'Tchondja',
-    'Vaz',
     'Vaz Manga',
     'Vila Massane',
   ];
