@@ -4,13 +4,11 @@ import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../domain/occurrence_model.dart';
 import 'occurrence_marker_widget.dart';
-import 'txeneza_map.dart';
 
 /// Painel inferior arrastável (estilo mapas premium) com resumo por estado,
 /// ação primária de denúncia e lista interativa de ocorrências.
 class OccurrenceSheet extends StatelessWidget {
   final List<Occurrence> occurrences;
-  final MapMode mapMode;
   final bool isOnline;
   final VoidCallback onReport;
   final ValueChanged<Occurrence> onOccurrenceTap;
@@ -23,7 +21,6 @@ class OccurrenceSheet extends StatelessWidget {
   const OccurrenceSheet({
     super.key,
     required this.occurrences,
-    required this.mapMode,
     required this.isOnline,
     required this.onReport,
     required this.onOccurrenceTap,
@@ -73,7 +70,6 @@ class OccurrenceSheet extends StatelessWidget {
               SliverToBoxAdapter(
                 child: _Header(
                   isDark: isDark,
-                  mapMode: mapMode,
                   isOnline: isOnline,
                   criticas: criticas,
                   pendentes: pendentes,
@@ -108,7 +104,6 @@ class OccurrenceSheet extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final bool isDark;
-  final MapMode mapMode;
   final bool isOnline;
   final int criticas;
   final int pendentes;
@@ -119,7 +114,6 @@ class _Header extends StatelessWidget {
 
   const _Header({
     required this.isDark,
-    required this.mapMode,
     required this.isOnline,
     required this.criticas,
     required this.pendentes,
@@ -159,9 +153,7 @@ class _Header extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      mapMode == MapMode.heatmap
-                          ? 'Zonas Críticas'
-                          : 'Ocorrências na Beira',
+                      'Ocorrências na Beira',
                       style: TextStyle(
                         fontFamily: 'Geist',
                         fontSize: 17,
@@ -173,41 +165,39 @@ class _Header extends StatelessWidget {
                     Row(
                       children: [
                         _SyncBadge(isOnline: isOnline),
-                        if (mapMode != MapMode.heatmap) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 4,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: isDark ? Colors.white38 : AppColors.grey300,
-                            ),
+                        const SizedBox(width: 8),
+                        Container(
+                          width: 4,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark ? Colors.white38 : AppColors.grey300,
                           ),
-                          const SizedBox(width: 8),
-                          GestureDetector(
-                            onTap: () => onShowPontosRecolhaToggled(!showPontosRecolha),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  showPontosRecolha ? LucideIcons.eye : LucideIcons.eyeOff,
-                                  size: 13,
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () => onShowPontosRecolhaToggled(!showPontosRecolha),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                showPontosRecolha ? LucideIcons.eye : LucideIcons.eyeOff,
+                                size: 13,
+                                color: showPontosRecolha ? AppColors.forestGreen : AppColors.grey600,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Pontos de Recolha',
+                                style: TextStyle(
+                                  fontFamily: 'Geist',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
                                   color: showPontosRecolha ? AppColors.forestGreen : AppColors.grey600,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Pontos de Recolha',
-                                  style: TextStyle(
-                                    fontFamily: 'Geist',
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: showPontosRecolha ? AppColors.forestGreen : AppColors.grey600,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ],

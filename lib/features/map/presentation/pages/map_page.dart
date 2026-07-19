@@ -5,13 +5,10 @@ import 'package:latlong2/latlong.dart';
 import '../../domain/occurrence_model.dart';
 import '../../domain/ponto_recolha_model.dart';
 import '../widgets/txeneza_map.dart';
-import '../widgets/pill_toggle.dart';
-import '../widgets/heatmap_legend.dart';
 import '../widgets/occurrence_sheet.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 
 class MapPage extends StatelessWidget {
-  final MapMode mapMode;
   final List<Occurrence> occurrences;
   final List<PontoRecolha> pontosRecolha;
   final bool isOnline;
@@ -20,7 +17,6 @@ class MapPage extends StatelessWidget {
   final LatLng userLocation;
   final bool isResolvingGps;
   final ValueChanged<double> onScaleChanged;
-  final ValueChanged<MapMode> onMapModeToggled;
   final VoidCallback onLocationPressed;
   final VoidCallback onReport;
   final ValueChanged<Occurrence> onOccurrenceSelected;
@@ -29,7 +25,6 @@ class MapPage extends StatelessWidget {
 
   const MapPage({
     super.key,
-    required this.mapMode,
     required this.occurrences,
     this.pontosRecolha = const [],
     required this.isOnline,
@@ -38,7 +33,6 @@ class MapPage extends StatelessWidget {
     required this.userLocation,
     required this.isResolvingGps,
     required this.onScaleChanged,
-    required this.onMapModeToggled,
     required this.onLocationPressed,
     required this.onReport,
     required this.onOccurrenceSelected,
@@ -48,11 +42,6 @@ class MapPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    const appBarHeight = 72.0;
-    final offlineBannerHeight = isOnline ? 0.0 : 48.0;
-    final topOffset = statusBarHeight + appBarHeight + offlineBannerHeight + 12.0;
-
     return LayoutBuilder(
       builder: (context, constraints) {
         // Fração recolhida do sheet, adaptada à altura disponível para que
@@ -66,7 +55,7 @@ class MapPage extends StatelessWidget {
             // Mapa a preencher toda a área.
             Positioned.fill(
               child: TxenezaMap(
-                mapMode: mapMode,
+                mapMode: MapMode.normal,
                 occurrences: occurrences,
                 pontosRecolha: pontosRecolha,
                 showClusters: currentScale < 12.0,
@@ -75,29 +64,6 @@ class MapPage extends StatelessWidget {
                 userLocation: userLocation,
                 isResolvingGps: isResolvingGps,
                 onScaleChanged: onScaleChanged,
-              ),
-            ),
-
-            // Alternador Mapa / Calor.
-            Positioned(
-              top: topOffset,
-              right: 16,
-              child: PillToggle(
-                mapMode: mapMode,
-                onChanged: onMapModeToggled,
-              ),
-            ),
-
-            // Legenda do mapa de calor, ancorada acima do sheet recolhido.
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              bottom: mapMode == MapMode.heatmap ? collapsedPx + 16 : -140,
-              left: 16,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: mapMode == MapMode.heatmap ? 1.0 : 0.0,
-                child: const HeatmapLegend(),
               ),
             ),
 
@@ -114,7 +80,6 @@ class MapPage extends StatelessWidget {
             // Painel inferior arrastável com resumo e lista.
             OccurrenceSheet(
               occurrences: occurrences,
-              mapMode: mapMode,
               isOnline: isOnline,
               onReport: onReport,
               onOccurrenceTap: onOccurrenceSelected,

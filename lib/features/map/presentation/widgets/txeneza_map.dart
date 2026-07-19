@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -13,7 +12,7 @@ import '../../domain/ponto_recolha_model.dart';
 import 'occurrence_marker_widget.dart';
 import 'ponto_recolha_marker.dart';
 
-enum MapMode { normal, satellite, heatmap }
+enum MapMode { normal, satellite }
 
 class TxenezaMap extends StatefulWidget {
   final MapMode mapMode;
@@ -112,7 +111,6 @@ class _TxenezaMapState extends State<TxenezaMap> {
     final styleUri = switch (widget.mapMode) {
       MapMode.normal => AppEnv.mapboxStyleNormal,
       MapMode.satellite => AppEnv.mapboxStyleSatellite,
-      MapMode.heatmap => AppEnv.mapboxStyleHeatmap,
     };
     _mapboxMap!.loadStyleURI(styleUri);
   }
@@ -141,26 +139,6 @@ class _TxenezaMapState extends State<TxenezaMap> {
         duration: const Duration(seconds: 2),
       ),
     );
-  }
-
-  double _getPixelRadius(double metersRadius, latlong.LatLng point, double zoom) {
-    final latitudeInRad = point.latitude * math.pi / 180.0;
-    final metersPerPixel = 156543.03 * math.cos(latitudeInRad) / math.pow(2, zoom);
-    return metersRadius / metersPerPixel;
-  }
-
-  void _createHeatmapCircle(latlong.LatLng center, double metersRadius, Color color) async {
-    if (_circleAnnotationManager == null) return;
-    final radiusInPixels = _getPixelRadius(metersRadius, center, widget.currentScale);
-
-    final options = CircleAnnotationOptions(
-      geometry: Point(coordinates: Position(center.longitude, center.latitude)),
-      circleColor: color.toARGB32(),
-      circleRadius: radiusInPixels,
-      circleOpacity: 0.55,
-      circleStrokeWidth: 0.0,
-    );
-    await _circleAnnotationManager!.create(options);
   }
 
   Future<void> _createClusterMarker(latlong.LatLng coords, List<Occurrence> items) async {
@@ -193,59 +171,45 @@ class _TxenezaMapState extends State<TxenezaMap> {
     await _circleAnnotationManager!.deleteAll();
     _annotationPayloads.clear();
 
-    if (widget.mapMode == MapMode.heatmap) {
-      if (widget.occurrences.isNotEmpty) {
-        for (final occ in widget.occurrences) {
-          final color = occurrenceStatusColor(occ.status);
-          _createHeatmapCircle(occ.position, 150.0, color);
-        }
-      } else {
-        // Fallback para mockups se a base de dados estiver vazia
-        _createHeatmapCircle(const latlong.LatLng(-19.8100, 34.8150), 450, const Color(0xFFFF3B30));
-        _createHeatmapCircle(const latlong.LatLng(-19.8350, 34.8410), 350, const Color(0xFFFF9500));
-        _createHeatmapCircle(const latlong.LatLng(-19.8250, 34.8700), 280, const Color(0xFFFFCC00));
+    // Pontos de recolha oficiais
+    if (widget.pontosRecolha.isNotEmpty) {
+      final pontoRecolhaImage = await _generatePontoRecolhaMarker();
+      for (final ponto in widget.pontosRecolha) {
+        final options = PointAnnotationOptions(
+          geometry: Point(coordinates: Position(ponto.position.longitude, ponto.position.latitude)),
+          image: pontoRecolhaImage,
+          iconSize: 0.58,
+        );
+        final annotation = await _pointAnnotationManager!.create(options);
+        _annotationPayloads[annotation.id] = ponto;
       }
+    }
+
+    // Ocorrências
+    if (widget.showClusters) {
+      final pgGroup = widget.occurrences.where((o) => o.id == '1' || o.id == '2').toList();
+      final mhGroup = widget.occurrences.where((o) => o.id == '3' || o.id == '4' || o.id == '5').toList();
+      final mcGroup = widget.occurrences.where((o) => o.id == '6' || o.id == '7' || o.id == '8').toList();
+      final ceGroup = widget.occurrences.where((o) => o.id == '9' || o.id == '10').toList();
+
+      if (pgGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8365, 34.8395), pgGroup);
+      if (mhGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8110, 34.8150), mhGroup);
+      if (mcGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8243, 34.8710), mcGroup);
+      if (ceGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8190, 34.8475), ceGroup);
     } else {
-      // Pontos de recolha oficiais
-      if (widget.pontosRecolha.isNotEmpty) {
-        final pontoRecolhaImage = await _generatePontoRecolhaMarker();
-        for (final ponto in widget.pontosRecolha) {
-          final options = PointAnnotationOptions(
-            geometry: Point(coordinates: Position(ponto.position.longitude, ponto.position.latitude)),
-            image: pontoRecolhaImage,
-            iconSize: 0.58,
-          );
-          final annotation = await _pointAnnotationManager!.create(options);
-          _annotationPayloads[annotation.id] = ponto;
-        }
-      }
+      for (final occ in widget.occurrences) {
+        final color = occurrenceStatusColor(occ.status);
+        final icon = occurrenceStatusIcon(occ.status);
+        final pinImage = await _generateTeardropPin(color: color, icon: icon);
 
-      // Ocorrências
-      if (widget.showClusters) {
-        final pgGroup = widget.occurrences.where((o) => o.id == '1' || o.id == '2').toList();
-        final mhGroup = widget.occurrences.where((o) => o.id == '3' || o.id == '4' || o.id == '5').toList();
-        final mcGroup = widget.occurrences.where((o) => o.id == '6' || o.id == '7' || o.id == '8').toList();
-        final ceGroup = widget.occurrences.where((o) => o.id == '9' || o.id == '10').toList();
-
-        if (pgGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8365, 34.8395), pgGroup);
-        if (mhGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8110, 34.8150), mhGroup);
-        if (mcGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8243, 34.8710), mcGroup);
-        if (ceGroup.isNotEmpty) await _createClusterMarker(const latlong.LatLng(-19.8190, 34.8475), ceGroup);
-      } else {
-        for (final occ in widget.occurrences) {
-          final color = occurrenceStatusColor(occ.status);
-          final icon = occurrenceStatusIcon(occ.status);
-          final pinImage = await _generateTeardropPin(color: color, icon: icon);
-
-          final options = PointAnnotationOptions(
-            geometry: Point(coordinates: Position(occ.position.longitude, occ.position.latitude)),
-            image: pinImage,
-            iconSize: 0.5,
-            iconAnchor: IconAnchor.BOTTOM,
-          );
-          final annotation = await _pointAnnotationManager!.create(options);
-          _annotationPayloads[annotation.id] = occ;
-        }
+        final options = PointAnnotationOptions(
+          geometry: Point(coordinates: Position(occ.position.longitude, occ.position.latitude)),
+          image: pinImage,
+          iconSize: 0.5,
+          iconAnchor: IconAnchor.BOTTOM,
+        );
+        final annotation = await _pointAnnotationManager!.create(options);
+        _annotationPayloads[annotation.id] = occ;
       }
     }
   }
@@ -442,7 +406,6 @@ class _TxenezaMapState extends State<TxenezaMap> {
     final styleUri = switch (widget.mapMode) {
       MapMode.normal => AppEnv.mapboxStyleNormal,
       MapMode.satellite => AppEnv.mapboxStyleSatellite,
-      MapMode.heatmap => AppEnv.mapboxStyleHeatmap,
     };
 
     return MapWidget(

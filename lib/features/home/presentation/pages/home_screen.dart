@@ -18,7 +18,6 @@ import '../../../map/domain/beira_geo.dart';
 import '../../../map/domain/occurrence_model.dart';
 import '../../../map/domain/ponto_recolha_model.dart';
 import '../../../map/presentation/pages/map_page.dart';
-import '../../../map/presentation/widgets/txeneza_map.dart' show MapMode;
 import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
@@ -32,7 +31,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedBottomIndex = 0;
-  MapMode _mapMode = MapMode.normal;
 
   // Connectivity state
   bool _isOnline = true;
@@ -294,23 +292,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _onTabTapped(int index) {
     setState(() {
       _selectedBottomIndex = index;
-      if (index == 0) {
-        _mapMode = MapMode.normal;
-      } else if (index == 1) {
-        _mapMode = MapMode.heatmap;
-      }
-    });
-  }
-
-  // Handle floating toggle changes
-  void _onMapModeToggled(MapMode mode) {
-    setState(() {
-      _mapMode = mode;
-      if (mode == MapMode.normal) {
-        _selectedBottomIndex = 0;
-      } else if (mode == MapMode.heatmap) {
-        _selectedBottomIndex = 1;
-      }
     });
   }
 
@@ -334,10 +315,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 Expanded(
                   child: IndexedStack(
-                    index: (_selectedBottomIndex == 0 || _selectedBottomIndex == 1) ? 0 : (_selectedBottomIndex - 1),
+                    index: _selectedBottomIndex,
                     children: [
                       MapPage(
-                        mapMode: _mapMode,
                         occurrences: _occurrences,
                         pontosRecolha: _showPontosRecolha ? _pontosRecolha : [],
                         isOnline: _isOnline,
@@ -350,7 +330,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             _currentScale = scale;
                           });
                         },
-                        onMapModeToggled: _onMapModeToggled,
                         onLocationPressed: _onLocationPressed,
                         onReport: _onDenunciarPressed,
                         onOccurrenceSelected: (occ) =>
@@ -375,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
 
             // Custom Floating Glassmorphic App Bar
-            if (_selectedBottomIndex != 2 && _selectedBottomIndex != 3)
+            if (_selectedBottomIndex == 0)
               Positioned(
                 top: 0,
                 left: 0,
@@ -387,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
 
             // Discrete Floating Offline Warning Banner
-            if (!_isOnline && _selectedBottomIndex != 2 && _selectedBottomIndex != 3)
+            if (!_isOnline && _selectedBottomIndex == 0)
               Positioned(
                 top: MediaQuery.of(context).padding.top + 76.0,
                 left: 20,
@@ -447,10 +426,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             FloatingNavigationDestination(
               icon: LucideIcons.map,
               label: 'Início',
-            ),
-            FloatingNavigationDestination(
-              icon: LucideIcons.flame,
-              label: 'Mapa Calor',
             ),
             FloatingNavigationDestination(
               icon: LucideIcons.sparkles,

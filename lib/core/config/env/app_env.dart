@@ -24,7 +24,4 @@ class AppEnv {
 
   static String get mapboxStyleSatellite =>
       dotenv.get('MAPBOX_STYLE_SATELLITE', fallback: 'mapbox://styles/mapbox/satellite-streets-v12');
-
-  static String get mapboxStyleHeatmap =>
-      dotenv.get('MAPBOX_STYLE_HEATMAP', fallback: 'mapbox://styles/mapbox/dark-v11');
 }
