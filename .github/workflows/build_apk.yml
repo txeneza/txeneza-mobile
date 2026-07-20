@@ -16,7 +16,7 @@ jobs:
       - name: Configurar Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Configurar Flutter SDK
@@ -25,18 +25,20 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Criar ficheiro .env a partir de Secrets do GitHub
+      - name: Criar ficheiro .env a partir de Secrets
+        env:
+          ENV_SECRET: ${{ secrets.ENV_FILE }}
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
+          echo "$ENV_SECRET" > .env
 
       - name: Instalar dependências
         run: flutter pub get
 
       - name: Compilar APK (Release)
-        run: flutter build apk --split-per-abi
+        run: flutter build apk --release
 
-      - name: Guardar Ficheiros APK para Download
+      - name: Guardar Ficheiro APK para Download
         uses: actions/upload-artifact@v4
         with:
           name: txeneza-apk-release
-          path: build/app/outputs/flutter-apk/*.apk
+          path: build/app/outputs/flutter-apk/app-release.apk
