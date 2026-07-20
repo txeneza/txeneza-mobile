@@ -24,9 +24,8 @@ void main() async {
 
   await themeProvider.init();
 
-  // Pede a permissão de notificações logo no arranque, em vez de esperar
-  // pela primeira tentativa de disparo (que ficaria silenciosamente sem efeito
-  // no Android 13+ sem a permissão concedida).
+  // Apenas configura o plugin (canais, etc). O pedido de permissão em runtime
+  // é feito na tela de permissões (onboarding), junto com Câmara e Localização.
   await LocalNotificationService.initialize();
 
   runApp(const App());

@@ -13,10 +13,13 @@ class LocalNotificationService {
     try {
       const androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
+      // Não pedimos permissão aqui: isto é feito explicitamente na tela de
+      // permissões (onboarding), junto com Câmara e Localização, para não
+      // interromper o utilizador logo ao abrir o app.
       const iosSettings = DarwinInitializationSettings(
-        requestAlertPermission: true,
-        requestBadgePermission: true,
-        requestSoundPermission: true,
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
       );
 
       const initSettings = InitializationSettings(
@@ -26,14 +29,6 @@ class LocalNotificationService {
 
       await _plugin.initialize(initSettings);
       _initialized = true;
-
-      // No Android 13+ (API 33) as notificações exigem permissão em
-      // runtime (POST_NOTIFICATIONS). Sem isto, o plugin.show() corre
-      // sem erro mas o sistema descarta a notificação silenciosamente.
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
     } catch (e) {
       debugPrint('Falha ao inicializar LocalNotificationService: $e');
     }

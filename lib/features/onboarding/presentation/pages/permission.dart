@@ -25,8 +25,10 @@ class PermissionPage extends StatefulWidget {
 class _PermissionPageState extends State<PermissionPage> {
   bool _cameraGranted = false;
   bool _locationGranted = false;
+  bool _notificationGranted = false;
   bool _cameraDeniedOnce = false;
   bool _locationDeniedOnce = false;
+  bool _notificationDeniedOnce = false;
   bool _isRequesting = false;
 
   @override
@@ -43,10 +45,12 @@ class _PermissionPageState extends State<PermissionPage> {
 
     final cameraStatus = await Permission.camera.status;
     final locationStatus = await Permission.locationWhenInUse.status;
+    final notificationStatus = await Permission.notification.status;
 
     setState(() {
       _cameraGranted = cameraStatus.isGranted;
       _locationGranted = locationStatus.isGranted;
+      _notificationGranted = notificationStatus.isGranted;
     });
   }
 
@@ -65,7 +69,8 @@ class _PermissionPageState extends State<PermissionPage> {
       _isRequesting = false;
     });
 
-    // Check if we can proceed
+    // Câmara e Localização são essenciais para o funcionamento do app.
+    // Notificação é pedida aqui também, mas não bloqueia o avanço se negada.
     if (_cameraGranted && _locationGranted) {
       await _completeFirstTimeConfig();
     } else {
@@ -92,6 +97,18 @@ class _PermissionPageState extends State<PermissionPage> {
         _locationGranted = locationStatus.isGranted;
         if (locationStatus.isDenied || locationStatus.isPermanentlyDenied) {
           _locationDeniedOnce = true;
+        }
+      });
+    }
+
+    // Request Notifications
+    if (!_notificationGranted) {
+      final notificationStatus = await Permission.notification.request();
+      setState(() {
+        _notificationGranted = notificationStatus.isGranted;
+        if (notificationStatus.isDenied ||
+            notificationStatus.isPermanentlyDenied) {
+          _notificationDeniedOnce = true;
         }
       });
     }
@@ -282,6 +299,19 @@ class _PermissionPageState extends State<PermissionPage> {
                 isDenied: _locationDeniedOnce,
                 isDark: isDark,
               ),
+
+              // Permission Block 3: Notifications (não disponível na web)
+              if (!kIsWeb) ...[
+                const SizedBox(height: 16),
+                _buildPermissionBlock(
+                  icon: LucideIcons.bell,
+                  title: 'Notificações',
+                  explanation: 'Para avisar quando o estado da tua denúncia mudar.',
+                  isGranted: _notificationGranted,
+                  isDenied: _notificationDeniedOnce,
+                  isDark: isDark,
+                ),
+              ],
 
               const Spacer(flex: 2),
 
