@@ -26,6 +26,14 @@ class LocalNotificationService {
 
       await _plugin.initialize(initSettings);
       _initialized = true;
+
+      // No Android 13+ (API 33) as notificações exigem permissão em
+      // runtime (POST_NOTIFICATIONS). Sem isto, o plugin.show() corre
+      // sem erro mas o sistema descarta a notificação silenciosamente.
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
     } catch (e) {
       debugPrint('Falha ao inicializar LocalNotificationService: $e');
     }
