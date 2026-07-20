@@ -111,35 +111,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final pontos = await _pontoRecolhaDataSource.fetchActivos();
       if (!mounted) return;
-      if (pontos.isEmpty) {
-        setState(() {
-          _pontosRecolha = [
-            const PontoRecolha(
-              id: 'pr-1',
-              nome: 'Ecoponto Central do Esturro',
-              position: LatLng(-19.8300, 34.8380),
-              bairro: 'Esturro',
-              horario: '07:00 - 17:00',
-            ),
-            const PontoRecolha(
-              id: 'pr-2',
-              nome: 'Ecoponto da Ponta Gêa',
-              position: LatLng(-19.8500, 34.8450),
-              bairro: 'Ponta Gêa',
-              horario: '08:00 - 18:00',
-            ),
-            const PontoRecolha(
-              id: 'pr-3',
-              nome: 'Ecoponto Rotunda da Munhava',
-              position: LatLng(-19.8150, 34.8250),
-              bairro: 'Munhava',
-              horario: '07:00 - 16:30',
-            ),
-          ];
-        });
-      } else {
-        setState(() => _pontosRecolha = pontos);
-      }
+      // Mostra sempre os dados reais do Supabase. Se não houver pontos
+      // activos, a lista fica vazia — nunca inventamos pontos falsos.
+      setState(() => _pontosRecolha = pontos);
     } catch (e) {
       debugPrint('Falha ao carregar pontos de recolha: $e');
     }
