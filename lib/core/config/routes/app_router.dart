@@ -162,14 +162,22 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         return;
       }
 
-      final needsCompletion = await ProfileCompletionService().needsCompletion();
+      final needsCompletion = await ProfileCompletionService()
+          .needsCompletion()
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => false,
+          );
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(
         needsCompletion ? AppRoutes.completeProfile : AppRoutes.home,
       );
     } catch (_) {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed(AppRoutes.login);
+        final hasSession = Supabase.instance.client.auth.currentSession != null;
+        Navigator.of(context).pushReplacementNamed(
+          hasSession ? AppRoutes.home : AppRoutes.login,
+        );
       }
     }
   }

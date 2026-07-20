@@ -29,6 +29,8 @@ class _AppState extends State<App> {
   }
 
   Future<String> _getInitialRoute() async {
+    final startTime = DateTime.now();
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final isFirstTime = prefs.getBool('is_first_time') ?? true;
@@ -39,12 +41,24 @@ class _AppState extends State<App> {
       final hasSession = Supabase.instance.client.auth.currentSession != null;
       if (!hasSession) return AppRoutes.login;
 
-      // Contas sem bairro real (típico do login Google) têm de o definir antes
-      // de entrar: as denúncias dependem do bairro para encaminhamento.
-      final needsCompletion = await ProfileCompletionService().needsCompletion();
+      // Se o utilizador estiver offline ou a ligacao for lenta, o timeout garante que a app avanca
+      final needsCompletion = await ProfileCompletionService()
+          .needsCompletion()
+          .timeout(
+            const Duration(seconds: 2),
+            onTimeout: () => false,
+          );
+
+      // Garante uma exibicao minima do Splash de 1.5s para transicao suave
+      final elapsed = DateTime.now().difference(startTime);
+      if (elapsed < const Duration(milliseconds: 1500)) {
+        await Future.delayed(const Duration(milliseconds: 1500) - elapsed);
+      }
+
       return needsCompletion ? AppRoutes.completeProfile : AppRoutes.home;
     } catch (e) {
-      return AppRoutes.onboarding;
+      final hasSession = Supabase.instance.client.auth.currentSession != null;
+      return hasSession ? AppRoutes.home : AppRoutes.login;
     }
   }
 

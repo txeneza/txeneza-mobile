@@ -27,7 +27,8 @@ class ProfileCompletionService {
           .from('utilizador')
           .select('bairro')
           .eq('id_utilizador', user.id)
-          .maybeSingle();
+          .maybeSingle()
+          .timeout(const Duration(seconds: 2));
 
       // Sem linha ainda (trigger em atraso) conta como perfil incompleto.
       if (row == null) return true;
