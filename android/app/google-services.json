@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "203468661907",
+    "project_id": "txeneza",
+    "storage_bucket": "txeneza.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:203468661907:android:99c355bccee86a37dcd966",
+        "android_client_info": {
+          "package_name": "com.example.txeneza_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCf7Hlspx8-fl5G2nq6bhKGnhWQKMHV4zc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
