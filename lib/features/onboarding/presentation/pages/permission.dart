@@ -14,6 +14,7 @@ import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/spacing/app_radius.dart';
 import '../../../../core/theme/icons/app_icons.dart';
 import '../../../../core/config/routes/app_routes.dart';
+import '../../../notification/services/fcm_service.dart';
 
 class PermissionPage extends StatefulWidget {
   const PermissionPage({super.key});
@@ -52,6 +53,10 @@ class _PermissionPageState extends State<PermissionPage> {
       _locationGranted = locationStatus.isGranted;
       _notificationGranted = notificationStatus.isGranted;
     });
+
+    if (notificationStatus.isGranted) {
+      await FCMService.requestPermission();
+    }
   }
 
   Future<void> _requestPermissions() async {
@@ -111,6 +116,12 @@ class _PermissionPageState extends State<PermissionPage> {
           _notificationDeniedOnce = true;
         }
       });
+
+      // Regista o dispositivo no Firebase Cloud Messaging e guarda o token
+      // no Supabase, para o backend poder enviar pushes a este utilizador.
+      if (_notificationGranted) {
+        await FCMService.requestPermission();
+      }
     }
   }
 

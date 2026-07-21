@@ -42,6 +42,8 @@ dependencies:
   cached_network_image: ^3.4.1
   mapbox_maps_flutter: ^2.26.0
   flutter_local_notifications: ^19.0.0
+  firebase_core: ^4.7.0
+  firebase_messaging: ^16.2.0
 
 dev_dependencies:
   flutter_test:
