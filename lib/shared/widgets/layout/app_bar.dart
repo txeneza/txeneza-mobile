@@ -7,11 +7,15 @@ import '../../../../features/map/presentation/widgets/connectivity_indicator.dar
 class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isOnline;
   final VoidCallback onConnectivityTap;
+  final int unreadCount;
+  final VoidCallback? onBellTap;
 
   const TxenezaAppBar({
     super.key,
     required this.isOnline,
     required this.onConnectivityTap,
+    this.unreadCount = 0,
+    this.onBellTap,
   });
 
   @override
@@ -101,10 +105,23 @@ class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ],
               ),
-              // Right side connectivity indicator
-              ConnectivityIndicator(
-                isOnline: isOnline,
-                onTap: onConnectivityTap,
+              // Right side: sino de notificações + indicador de conectividade
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (onBellTap != null) ...[
+                    _NotificationBell(
+                      unreadCount: unreadCount,
+                      isDark: isDark,
+                      onTap: onBellTap!,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  ConnectivityIndicator(
+                    isOnline: isOnline,
+                    onTap: onConnectivityTap,
+                  ),
+                ],
               ),
             ],
           ),
@@ -115,4 +132,66 @@ class TxenezaAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(72.0);
+}
+
+/// Sino de notificações com badge numérico de não lidas. Sem número
+/// nenhum quando a contagem é zero (só o ícone).
+class _NotificationBell extends StatelessWidget {
+  final int unreadCount;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _NotificationBell({
+    required this.unreadCount,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Icon(
+              Icons.notifications_none_rounded,
+              size: 24,
+              color: isDark ? Colors.white70 : AppColors.forestGreen,
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                top: -4,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                  constraints: const BoxConstraints(minWidth: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.error,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF1A1A1A) : Colors.white,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    unreadCount > 99 ? '99+' : '$unreadCount',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -24,8 +24,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// para mostrar a notificação no ecrã (inclusive quando a mensagem chega em
 /// primeiro plano, caso em que o FCM não mostra nada sozinho), mas agora a
 /// origem da notificação pode ser um push do servidor (via Firebase Admin
-/// SDK / API HTTP v1), não só o polling local em
-/// [NotificacaoDataSource.checkStatusChangesAndNotify].
+/// SDK / API HTTP v1), não só a subscrição Realtime em
+/// [NotificacaoDataSource.subscribeToChanges].
 class FCMService {
   FCMService._();
 

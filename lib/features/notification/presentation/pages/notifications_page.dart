@@ -1,12 +1,18 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
-import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../occurrence/presentation/pages/resolucao_verification_page.dart';
 import '../../data/notificacao_datasource.dart';
 import '../../domain/notificacao_model.dart';
+import '../widgets/notification_tile.dart';
 
 /// Ecrã de centro de notificações do morador.
+///
+/// Só lê e marca como lida — nunca cria notificações (isso é sempre feito
+/// pelo backend web). Se a leitura falhar (sem rede, RLS mal configurado,
+/// etc.), mostra um estado vazio/discreto em vez de quebrar o ecrã.
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
 
@@ -18,40 +24,73 @@ class _NotificationsPageState extends State<NotificationsPage> {
   final _dataSource = NotificacaoDataSource();
   List<NotificacaoModel> _notificacoes = [];
   bool _isLoading = true;
+  bool _hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _loadNotificacoes();
+    _load();
   }
 
-  Future<void> _loadNotificacoes() async {
-    setState(() => _isLoading = true);
-    await _dataSource.checkStatusChangesAndNotify();
-    final items = await _dataSource.fetchNotificacoes();
-    if (!mounted) return;
+  Future<void> _load() async {
     setState(() {
-      _notificacoes = items;
-      _isLoading = false;
+      _isLoading = true;
+      _hasError = false;
     });
+
+    try {
+      final result = await _dataSource.fetchNotificacoes();
+      if (!mounted) return;
+      setState(() {
+        _notificacoes = result;
+        _isLoading = false;
+      });
+    } catch (_) {
+      // fetchNotificacoes() já trata os próprios erros e devolve lista
+      // vazia; este catch é só uma rede de segurança adicional para nunca
+      // deixar o ecrã quebrar.
+      if (!mounted) return;
+      setState(() {
+        _notificacoes = [];
+        _isLoading = false;
+        _hasError = true;
+      });
+    }
   }
 
-  Future<void> _onNotificationTap(NotificacaoModel notif) async {
+  Future<void> _onTapNotificacao(NotificacaoModel notif) async {
     if (!notif.lida) {
-      await _dataSource.marcarComoLida(notif.id);
-      _loadNotificacoes();
+      // Actualização optimista: marca como lida no ecrã já, e só depois
+      // confirma no servidor — sente-se instantâneo mesmo com rede lenta.
+      setState(() {
+        final idx = _notificacoes.indexWhere((n) => n.id == notif.id);
+        if (idx != -1) _notificacoes[idx] = notif.copyWith(lida: true);
+      });
+      unawaited(_dataSource.marcarComoLida(notif.id));
     }
 
-    if (notif.idOcorrencia != null && mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ResolucaoVerificationPage(
-            occurrenceId: notif.idOcorrencia!,
-            occurrenceTitle: notif.titulo,
-          ),
+    // Notificação sem ocorrência associada (ex: aviso geral): fica clicável
+    // só para marcar como lida, sem navegação.
+    if (notif.idOcorrencia == null || !mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResolucaoVerificationPage(
+          occurrenceId: notif.idOcorrencia!,
+          occurrenceTitle: 'Ocorrência',
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  Future<void> _marcarTodasComoLidas() async {
+    final aindaNaoLidas = _notificacoes.where((n) => !n.lida).toList();
+    if (aindaNaoLidas.isEmpty) return;
+
+    setState(() {
+      _notificacoes = _notificacoes.map((n) => n.copyWith(lida: true)).toList();
+    });
+    await _dataSource.marcarTodasComoLidas();
   }
 
   @override
@@ -59,182 +98,155 @@ class _NotificationsPageState extends State<NotificationsPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final naoLidas = _notificacoes.where((n) => !n.lida).toList();
+    final lidas = _notificacoes.where((n) => n.lida).toList();
+
     return Scaffold(
+      backgroundColor: isDark ? AppColors.grey900 : AppColors.white,
       appBar: AppBar(
-        title: const Text(
-          'Notificações',
-          style: TextStyle(fontFamily: 'Geist', fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: theme.scaffoldBackgroundColor,
+        backgroundColor: isDark ? AppColors.grey900 : AppColors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text(
+          'Notificações',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : AppColors.grey900,
+          ),
+        ),
+        iconTheme: IconThemeData(color: isDark ? Colors.white : AppColors.grey900),
         actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.refreshCw, size: 18),
-            onPressed: _loadNotificacoes,
+          if (naoLidas.isNotEmpty)
+            TextButton(
+              onPressed: _marcarTodasComoLidas,
+              child: const Text(
+                'Marcar tudo como lido',
+                style: TextStyle(color: AppColors.forestGreen, fontWeight: FontWeight.w700, fontSize: 12.5),
+              ),
+            ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        color: AppColors.forestGreen,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.forestGreen))
+            : _notificacoes.isEmpty
+                ? _buildEmptyState(isDark)
+                : ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    children: [
+                      if (_hasError)
+                        _buildErrorBanner(isDark),
+                      if (naoLidas.isNotEmpty) ...[
+                        _buildSectionHeader('Não lidas', isDark),
+                        ...naoLidas.map(
+                          (n) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: NotificationTile(
+                              notificacao: n,
+                              isDark: isDark,
+                              onTap: () => _onTapNotificacao(n),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      if (lidas.isNotEmpty) ...[
+                        _buildSectionHeader('Lidas', isDark),
+                        ...lidas.map(
+                          (n) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: NotificationTile(
+                              notificacao: n,
+                              isDark: isDark,
+                              onTap: () => _onTapNotificacao(n),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String label, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.4,
+          color: isDark ? Colors.white38 : AppColors.grey600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorBanner(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(LucideIcons.wifiOff, size: 16, color: AppColors.warning),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Não foi possível atualizar as notificações agora. A puxar para baixo tenta de novo.',
+              style: TextStyle(fontSize: 12, color: isDark ? Colors.white70 : AppColors.grey800),
+            ),
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.forestGreen))
-          : _notificacoes.isEmpty
-              ? _buildEmptyState(isDark)
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _notificacoes.length,
-                  itemBuilder: (context, index) {
-                    final item = _notificacoes[index];
-                    return _NotificationCard(
-                      notification: item,
-                      isDark: isDark,
-                      onTap: () => _onNotificationTap(item),
-                    );
-                  },
-                ),
     );
   }
 
   Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              LucideIcons.bellOff,
-              size: 48,
-              color: isDark ? Colors.white38 : AppColors.grey600,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Sem notificações',
-              style: TextStyle(
-                fontFamily: 'Geist',
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : AppColors.grey900,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.bellOff,
+                    size: 48,
+                    color: isDark ? Colors.white38 : AppColors.grey600,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Sem notificações',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : AppColors.grey900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Quando o estado de uma denúncia sua mudar, aparece aqui.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: isDark ? Colors.white60 : AppColors.grey800),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Será notificado aqui sempre que o estado das suas denúncias for atualizado.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Geist',
-                fontSize: 13,
-                color: isDark ? Colors.white60 : AppColors.grey800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationCard extends StatelessWidget {
-  final NotificacaoModel notification;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  const _NotificationCard({
-    required this.notification,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final unread = !notification.lida;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: unread
-            ? AppColors.forestGreen.withValues(alpha: isDark ? 0.2 : 0.08)
-            : (isDark ? DarkColors.surface : AppColors.grey100),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.forestGreen.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    LucideIcons.bellRing,
-                    size: 18,
-                    color: AppColors.forestGreen,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              notification.titulo,
-                              style: TextStyle(
-                                fontFamily: 'Geist',
-                                fontSize: 13.5,
-                                fontWeight: unread ? FontWeight.bold : FontWeight.w600,
-                                color: isDark ? Colors.white : AppColors.grey900,
-                              ),
-                            ),
-                          ),
-                          if (unread)
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: AppColors.forestGreen,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        notification.mensagem,
-                        style: TextStyle(
-                          fontFamily: 'Geist',
-                          fontSize: 12.5,
-                          height: 1.35,
-                          color: isDark ? Colors.white70 : AppColors.grey800,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        _formatDataHora(notification.dataHora),
-                        style: TextStyle(
-                          fontFamily: 'Geist',
-                          fontSize: 11,
-                          color: isDark ? Colors.white38 : AppColors.grey600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         ),
       ),
     );
-  }
-
-  String _formatDataHora(DateTime dt) {
-    return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }

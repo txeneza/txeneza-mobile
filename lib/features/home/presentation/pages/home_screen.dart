@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
 import '../../../../core/theme/colors/app_colors.dart';
@@ -19,6 +20,8 @@ import '../../../map/domain/occurrence_model.dart';
 import '../../../map/domain/ponto_recolha_model.dart';
 import '../../../map/presentation/pages/map_page.dart';
 import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
+import '../../../notification/data/notificacao_datasource.dart';
+import '../../../notification/presentation/pages/notifications_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
 
@@ -55,6 +58,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _denunciaQueue = DenunciaQueue();
   List<Occurrence> _occurrences = [];
 
+  // Notificações: contagem de não lidas para o badge do sino, actualizada
+  // em tempo real via Supabase Realtime.
+  final _notificacaoDataSource = NotificacaoDataSource();
+  int _unreadCount = 0;
+  RealtimeChannel? _notificacaoChannel;
+
   @override
   void initState() {
     super.initState();
@@ -63,11 +72,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadOccurrences();
     _flushQueue();
     _recuperarFotoPerdida();
+    _loadUnreadCount();
+    _subscribeToNotificacoes();
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       if (!_isManualOverride) {
         _updateConnectionStatus(results);
       }
     });
+  }
+
+  /// Lê as notificações e actualiza a contagem de não lidas mostrada no
+  /// badge do sino. Falha em silêncio (mesmo cuidado que o resto do ecrã):
+  /// sem rede, o badge simplesmente não actualiza, nunca quebra a home.
+  Future<void> _loadUnreadCount() async {
+    try {
+      final notificacoes = await _notificacaoDataSource.fetchNotificacoes();
+      if (!mounted) return;
+      setState(() {
+        _unreadCount = notificacoes.where((n) => !n.lida).length;
+      });
+    } catch (e) {
+      debugPrint('Falha ao carregar contagem de notificações: $e');
+    }
+  }
+
+  /// Subscreve alterações em tempo real na tabela "notificacao" — assim que
+  /// o backend web cria uma notificação nova (ou o utilizador marca alguma
+  /// como lida noutro dispositivo), o badge actualiza-se sozinho, sem
+  /// precisar reabrir a app.
+  void _subscribeToNotificacoes() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _notificacaoChannel = _notificacaoDataSource.subscribeToChanges(
+      userId: userId,
+      onChange: _loadUnreadCount,
+    )..subscribe();
+  }
+
+  Future<void> _onBellTap() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsPage()),
+    );
+    // Ao voltar do centro de notificações, o utilizador pode ter lido
+    // algumas — reflecte isso no badge.
+    _loadUnreadCount();
   }
 
   /// Em Android, se o sistema matar a app enquanto a câmara está aberta (comum
@@ -177,6 +226,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _connectivitySubscription.cancel();
+    if (_notificacaoChannel != null) {
+      Supabase.instance.client.removeChannel(_notificacaoChannel!);
+    }
     super.dispose();
   }
 
@@ -336,6 +388,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: TxenezaAppBar(
                   isOnline: _isOnline,
                   onConnectivityTap: _toggleConnectivityManually,
+                  unreadCount: _unreadCount,
+                  onBellTap: _onBellTap,
                 ),
               ),
 

@@ -1,171 +1,103 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/notificacao_model.dart';
-import '../services/local_notification_service.dart';
 
-/// Datasource de gestão e sincronização de notificações ao morador.
+/// Lê as notificações do morador e marca-as como lidas.
+///
+/// A app móvel NUNCA cria notificações — quem cria é sempre o backend web,
+/// na mesma transação em que altera o estado de uma ocorrência ou regista
+/// uma verificação de resolução (ver txeneza-web:
+/// src/app/api/occurrences/[id]/route.ts e
+/// src/app/api/occurrences/[id]/verifications/route.ts). Este datasource
+/// existe só para ler e marcar como lida.
 class NotificacaoDataSource {
-  static const String _localPrefsKey = 'txeneza_notifications_local';
-  static const String _lastKnownStatusesKey = 'txeneza_occurrences_statuses';
-
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Lê as notificações do morador (Supabase com fallback para armazenamento local).
+  /// Lê as notificações do utilizador autenticado, da mais recente para a
+  /// mais antiga. Nunca lança exceção: se a leitura falhar (sem rede, RLS
+  /// mal configurado, etc.) devolve lista vazia, para o ecrã mostrar um
+  /// estado vazio/discreto em vez de quebrar (mesmo cuidado já usado em
+  /// PontoRecolhaDataSource/_loadPontosRecolha).
   Future<List<NotificacaoModel>> fetchNotificacoes() async {
     final userId = _client.auth.currentUser?.id;
-    final List<NotificacaoModel> list = [];
+    if (userId == null) return [];
 
-    if (userId != null) {
-      try {
-        final rows = await _client
-            .from('notificacao')
-            .select('*')
-            .eq('id_utilizador', userId)
-            .order('data_hora', ascending: false);
+    try {
+      final rows = await _client
+          .from('notificacao')
+          .select('*')
+          .eq('id_utilizador', userId)
+          .order('data_hora', ascending: false);
 
-        for (final r in (rows as List)) {
-          list.add(NotificacaoModel.fromJson(r as Map<String, dynamic>));
-        }
-      } catch (e) {
-        debugPrint('Tabela notificacao inacessível no Supabase: $e');
-      }
+      return (rows as List)
+          .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Erro ao buscar notificações: $e');
+      return [];
     }
-
-    // Combina com notificações guardadas localmente
-    final localList = await _fetchLocalNotifications();
-    for (final item in localList) {
-      if (!list.any((n) => n.id == item.id)) {
-        list.add(item);
-      }
-    }
-
-    list.sort((a, b) => b.dataHora.compareTo(a.dataHora));
-    return list;
   }
 
-  /// Verifica se alguma ocorrência do morador mudou de estado e dispara a notificação.
-  Future<void> checkStatusChangesAndNotify() async {
+  /// Marca uma notificação individual como lida.
+  Future<void> marcarComoLida(String idNotificacao) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
     try {
-      final rows = await _client
-          .from('ocorrencia')
-          .select('id_ocorrencia, estado, categoria_residuo(nome)')
+      await _client
+          .from('notificacao')
+          .update({'lida': true})
+          .eq('id_notificacao', idNotificacao)
           .eq('id_utilizador', userId);
-
-      final prefs = await SharedPreferences.getInstance();
-      final String? cachedJson = prefs.getString(_lastKnownStatusesKey);
-      final Map<String, String> lastKnown = cachedJson != null
-          ? Map<String, String>.from(jsonDecode(cachedJson) as Map)
-          : {};
-
-      final Map<String, String> updatedKnown = {};
-
-      for (final r in (rows as List)) {
-        final id = r['id_ocorrencia'] as String;
-        final estadoAtual = r['estado'] as String? ?? 'pendente';
-        final categoria = r['categoria_residuo'] as Map<String, dynamic>?;
-        final nomeCategoria = categoria?['nome'] as String? ?? 'Resíduo';
-
-        updatedKnown[id] = estadoAtual;
-
-        // Se já conhecíamos esta ocorrência e o estado mudou:
-        if (lastKnown.containsKey(id) && lastKnown[id] != estadoAtual) {
-          final estadoAntigo = lastKnown[id];
-          final titulo = 'Estado da Denúncia Atualizado';
-          final mensagem =
-              'A sua ocorrência "$nomeCategoria" mudou de "${_formatEstado(estadoAntigo)}" para "${_formatEstado(estadoAtual)}".';
-
-          // 1. Notificação local imediata no dispositivo (Push/Local)
-          await LocalNotificationService.showNotification(
-            id: id.hashCode,
-            title: titulo,
-            body: mensagem,
-          );
-
-          // 2. Registar notificação no Supabase e localmente
-          final notif = NotificacaoModel(
-            id: 'notif_${id}_${DateTime.now().millisecondsSinceEpoch}',
-            idUtilizador: userId,
-            idOcorrencia: id,
-            titulo: titulo,
-            mensagem: mensagem,
-            lida: false,
-            tipo: 'mudanca_estado',
-            dataHora: DateTime.now(),
-          );
-
-          await _persistNotificacao(notif);
-        }
-      }
-
-      await prefs.setString(_lastKnownStatusesKey, jsonEncode(updatedKnown));
     } catch (e) {
-      debugPrint('Erro ao verificar mudança de estado para notificações: $e');
+      debugPrint('Erro ao marcar notificação como lida: $e');
     }
   }
 
-  /// Marca a notificação como lida.
-  Future<void> marcarComoLida(String idNotificacao) async {
+  /// Marca todas as notificações não lidas do utilizador como lidas de
+  /// uma vez (botão "marcar tudo como lido").
+  Future<void> marcarTodasComoLidas() async {
     final userId = _client.auth.currentUser?.id;
-    if (userId != null) {
-      try {
-        await _client
-            .from('notificacao')
-            .update({'lida': true})
-            .eq('id_notificacao', idNotificacao);
-      } catch (_) {}
-    }
+    if (userId == null) return;
 
-    final localList = await _fetchLocalNotifications();
-    final updated = localList.map((n) {
-      if (n.id == idNotificacao) return n.copyWith(lida: true);
-      return n;
-    }).toList();
-
-    final prefs = await SharedPreferences.getInstance();
-    final jsonList = updated.map((n) => jsonEncode(n.toJson())).toList();
-    await prefs.setStringList(_localPrefsKey, jsonList);
-  }
-
-  Future<void> _persistNotificacao(NotificacaoModel notif) async {
     try {
-      await _client.from('notificacao').upsert(notif.toJson());
-    } catch (_) {}
-
-    final localList = await _fetchLocalNotifications();
-    localList.insert(0, notif);
-    final prefs = await SharedPreferences.getInstance();
-    final jsonList = localList.map((n) => jsonEncode(n.toJson())).toList();
-    await prefs.setStringList(_localPrefsKey, jsonList);
-  }
-
-  Future<List<NotificacaoModel>> _fetchLocalNotifications() async {
-    final prefs = await SharedPreferences.getInstance();
-    final list = prefs.getStringList(_localPrefsKey) ?? [];
-    return list
-        .map((s) => NotificacaoModel.fromJson(jsonDecode(s) as Map<String, dynamic>))
-        .toList();
-  }
-
-  String _formatEstado(String? estado) {
-    switch (estado) {
-      case 'pendente':
-        return 'Pendente';
-      case 'em_analise':
-        return 'Em Análise';
-      case 'em_progresso':
-      case 'atribuida':
-        return 'Em Progresso';
-      case 'resolvida':
-        return 'Resolvida';
-      case 'reaberta':
-        return 'Reaberta';
-      default:
-        return estado ?? 'Atualizado';
+      await _client
+          .from('notificacao')
+          .update({'lida': true})
+          .eq('id_utilizador', userId)
+          .eq('lida', false);
+    } catch (e) {
+      debugPrint('Erro ao marcar todas as notificações como lidas: $e');
     }
+  }
+
+  /// Subscreve alterações em tempo real na tabela "notificacao" para o
+  /// utilizador atual (INSERT de notificações novas e UPDATE de estado
+  /// lida/não lida). Chama [onChange] sempre que algo muda — o chamador
+  /// decide o que fazer (tipicamente: reler a contagem de não lidas).
+  ///
+  /// Devolve o canal para o chamador poder subscrever (é preciso chamar
+  /// `.subscribe()` antes de usar) e, principalmente, para poder ser
+  /// removido em dispose() com `_client.removeChannel(channel)` — sem
+  /// isso, o canal fica ligado mesmo depois do widget ser destruído.
+  RealtimeChannel subscribeToChanges({
+    required String userId,
+    required VoidCallback onChange,
+  }) {
+    final channel = _client
+        .channel('notificacao_utilizador_$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notificacao',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'id_utilizador',
+            value: userId,
+          ),
+          callback: (payload) => onChange(),
+        );
+
+    return channel;
   }
 }
