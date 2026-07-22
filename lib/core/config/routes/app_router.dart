@@ -9,6 +9,7 @@ import '../../../../features/onboarding/presentation/pages/permission.dart';
 import '../../../../features/home/presentation/pages/home_screen.dart';
 import '../../../../features/chatIA/presentation/pages/chat_ia_screen.dart';
 import '../../../../features/auth/presentation/pages/login_page.dart';
+import '../../../../features/auth/presentation/pages/forgot_password_page.dart';
 import '../../../../features/auth/presentation/pages/signup_page.dart';
 import '../../../../features/auth/presentation/pages/complete_profile_page.dart';
 import '../../../../features/profile/presentation/pages/sub_pages/change_password_page.dart';
@@ -51,6 +52,11 @@ class AppRouter {
         return MaterialPageRoute(
           settings: settings,
           builder: (_) => const LoginPage(),
+        );
+      case AppRoutes.forgotPassword:
+        return MaterialPageRoute(
+          settings: settings,
+          builder: (_) => const ForgotPasswordPage(),
         );
       case AppRoutes.signUp:
         return MaterialPageRoute(

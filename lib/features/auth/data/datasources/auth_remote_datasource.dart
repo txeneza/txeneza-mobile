@@ -85,6 +85,13 @@ class AuthRemoteDataSource {
     await _client.auth.signOut();
   }
 
+  Future<void> resetPassword(String email) async {
+    await _client.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      redirectTo: _googleRedirectUrl,
+    );
+  }
+
   Future<List<String>> getNeighborhoods() async {
     // Lista fixa de bairros da Beira, não depende do backend.
     return BeiraNeighborhoods.list;

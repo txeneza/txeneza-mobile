@@ -211,6 +211,29 @@ class _LoginPageState extends State<LoginPage> {
                                     validator: _validatePassword,
                                     onFieldSubmitted: (_) => _submit(),
                                   ),
+                                  const SizedBox(height: 6),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        Navigator.of(context).pushNamed(AppRoutes.forgotPassword);
+                                      },
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(0, 32),
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: Text(
+                                        'Esqueceu a senha?',
+                                        style: TextStyle(
+                                          fontFamily: 'Geist',
+                                          color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
