@@ -12,6 +12,7 @@ class Occurrence {
   final OccurrenceStatus status;
   final String title;
   final String description;
+  final String? photoUrl;
 
   const Occurrence({
     required this.id,
@@ -19,5 +20,6 @@ class Occurrence {
     required this.status,
     required this.title,
     required this.description,
+    this.photoUrl,
   });
 }

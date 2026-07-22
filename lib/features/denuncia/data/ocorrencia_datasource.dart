@@ -85,19 +85,33 @@ class OcorrenciaDataSource {
     });
   }
 
-  /// Lê todas as ocorrências para o mapa, já mapeadas para [Occurrence].
+  /// Lê as ocorrências do utilizador autenticado (para o mapa e para a
+  /// secção "Ocorrências na Beira"), já mapeadas para [Occurrence] e com a
+  /// URL pública da fotografia da denúncia.
+  ///
+  /// Só devolve as ocorrências do próprio utilizador — o mapa deixou de
+  /// mostrar denúncias de outras pessoas. Sem sessão activa, devolve lista
+  /// vazia (nunca lança excepção, mesmo cuidado dos restantes datasources).
   Future<List<Occurrence>> fetchAll() async {
-    final rows = await _client
-        .from('ocorrencia')
-        .select(
-          'id_ocorrencia, latitude, longitude, descricao, estado, gravidade, '
-          'categoria_residuo(nome)',
-        )
-        .order('data_hora_registo', ascending: false);
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return [];
 
-    return (rows as List)
-        .map((r) => _mapToOccurrence(r as Map<String, dynamic>))
-        .toList();
+    try {
+      final rows = await _client
+          .from('ocorrencia')
+          .select(
+            'id_ocorrencia, latitude, longitude, descricao, estado, gravidade, '
+            'categoria_residuo(nome), fotografia(caminho_ficheiro, tipo)',
+          )
+          .eq('id_utilizador', userId)
+          .order('data_hora_registo', ascending: false);
+
+      return (rows as List)
+          .map((r) => _mapToOccurrence(r as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
   }
 
   Occurrence _mapToOccurrence(Map<String, dynamic> row) {
@@ -119,6 +133,21 @@ class OcorrenciaDataSource {
     final nomeCategoria = categoria?['nome'] as String? ?? 'Resíduo';
     final descricao = (row['descricao'] as String?)?.trim();
 
+    // Foto da denúncia (a primeira do tipo 'denuncia') → URL pública do
+    // bucket, mesmo padrão já usado em profile_repository_impl.dart.
+    String? photoUrl;
+    final fotos = row['fotografia'] as List?;
+    if (fotos != null && fotos.isNotEmpty) {
+      final foto = fotos.cast<Map<String, dynamic>>().firstWhere(
+            (f) => f['tipo'] == 'denuncia',
+            orElse: () => fotos.first as Map<String, dynamic>,
+          );
+      final path = foto['caminho_ficheiro'] as String?;
+      if (path != null && path.isNotEmpty) {
+        photoUrl = _client.storage.from(_bucket).getPublicUrl(path);
+      }
+    }
+
     return Occurrence(
       id: row['id_ocorrencia'] as String,
       position: LatLng(
@@ -130,6 +159,7 @@ class OcorrenciaDataSource {
       description: (descricao != null && descricao.isNotEmpty)
           ? descricao
           : 'Ocorrência de resíduo reportada.',
+      photoUrl: photoUrl,
     );
   }
 }

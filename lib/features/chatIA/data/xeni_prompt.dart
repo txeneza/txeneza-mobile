@@ -55,7 +55,7 @@ Usa isto para guiar o utilizador sempre que ele perguntar sobre o funcionamento 
    Para que as denúncias funcionem, a app solicita permissões nativas de Localização (GPS) e de Câmara.
 
 3. Ecrã Principal (Mapa):
-   Apresenta um mapa interativo da Cidade da Beira, com todas as ocorrências registadas.
+   Apresenta um mapa interativo da Cidade da Beira, com as ocorrências denunciadas pelo próprio utilizador.
    Botão GPS: centra a câmara na posição física atual do utilizador.
    Estado de Conexão: mostra um selo "Tempo real" (verde) quando online ou "Dados locais" (laranja) quando offline.
    Pontos de Recolha Oficiais: marcadores circulares brancos com borda verde-floresta e ícone de lixeira. Ao tocar, abre um painel inferior com o Nome, o Bairro atendido e o Horário de funcionamento do ecoponto/depósito oficial.

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
@@ -153,7 +154,7 @@ class _Header extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ocorrências na Beira',
+                      'Minhas Ocorrências',
                       style: TextStyle(
                         fontFamily: 'Geist',
                         fontSize: 17,
@@ -389,20 +390,11 @@ class _OccurrenceCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Ícone de estado num círculo suave.
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    occurrenceStatusIcon(occurrence.status),
-                    size: 19,
-                    color: color,
-                  ),
-                ),
+                // Miniatura da fotografia da denúncia, com um selo de
+                // estado sobreposto no canto. Sem foto (não devia acontecer
+                // nas ocorrências novas, mas por segurança), cai para o
+                // círculo de ícone antigo.
+                _OccurrenceThumbnail(occurrence: occurrence, color: color),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -445,6 +437,90 @@ class _OccurrenceCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OccurrenceThumbnail extends StatelessWidget {
+  final Occurrence occurrence;
+  final Color color;
+
+  const _OccurrenceThumbnail({required this.occurrence, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final photoUrl = occurrence.photoUrl;
+
+    return SizedBox(
+      width: 42,
+      height: 42,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: photoUrl == null || photoUrl.isEmpty
+                ? Container(
+                    width: 42,
+                    height: 42,
+                    color: color.withValues(alpha: 0.14),
+                    child: Icon(
+                      occurrenceStatusIcon(occurrence.status),
+                      size: 19,
+                      color: color,
+                    ),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: photoUrl,
+                    width: 42,
+                    height: 42,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      width: 42,
+                      height: 42,
+                      color: AppColors.grey200,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppColors.forestGreen),
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      width: 42,
+                      height: 42,
+                      color: color.withValues(alpha: 0.14),
+                      child: Icon(
+                        occurrenceStatusIcon(occurrence.status),
+                        size: 19,
+                        color: color,
+                      ),
+                    ),
+                  ),
+          ),
+          // Selo de estado no canto — continua visível mesmo com foto.
+          Positioned(
+            bottom: -3,
+            right: -3,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Icon(
+                occurrenceStatusIcon(occurrence.status),
+                size: 10,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
