@@ -106,23 +106,8 @@ class _PermissionPageState extends State<PermissionPage> {
       });
     }
 
-    // Request Notifications
-    if (!_notificationGranted) {
-      final notificationStatus = await Permission.notification.request();
-      setState(() {
-        _notificationGranted = notificationStatus.isGranted;
-        if (notificationStatus.isDenied ||
-            notificationStatus.isPermanentlyDenied) {
-          _notificationDeniedOnce = true;
-        }
-      });
-
-      // Regista o dispositivo no Firebase Cloud Messaging e guarda o token
-      // no Supabase, para o backend poder enviar pushes a este utilizador.
-      if (_notificationGranted) {
-        await FCMService.requestPermission();
-      }
-    }
+    // Notificações: são opcionais e não interrompem a abertura inicial da aplicação (UX).
+    // Podem ser ativadas posteriormente nas Definições do Perfil ou ao subscrever ocorrências.
   }
 
   Future<void> _requestWebPermissions() async {

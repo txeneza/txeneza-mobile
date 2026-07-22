@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -10,6 +10,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/theme/colors/app_colors.dart';
 import '../../../core/theme/colors/dark_colors.dart';
+import '../../chatIA/data/services/gemini_service.dart';
+import '../../chatIA/domain/denuncia_ai_classification_result.dart';
 import '../../map/domain/beira_geo.dart';
 import '../data/categoria_datasource.dart';
 import '../domain/categoria.dart';
@@ -20,8 +22,8 @@ import 'denuncia_controller.dart';
 /// Resultado devolvido ao fechar a página, para a home saber o que aconteceu.
 enum DenunciaResult { sentOnline, queuedOffline }
 
-/// Fluxo de captura de denúncia: foto → GPS + validação Beira → categoria +
-/// gravidade → submeter (online ou fila offline).
+/// Fluxo de captura de denúncia: foto → GPS + validação Beira → IA (Gemini) →
+/// categoria + gravidade → submeter (online ou fila offline).
 class DenunciaCapturePage extends StatefulWidget {
   final bool isOnline;
 
@@ -42,11 +44,13 @@ class DenunciaCapturePage extends StatefulWidget {
 class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
   final _controller = DenunciaController();
   final _categoriaDataSource = CategoriaDataSource();
+  final _geminiService = GeminiService();
   final _descricaoController = TextEditingController();
   final _picker = ImagePicker();
 
   String? _imagePath;
   LatLng? _location;
+  double? _locationAccuracy;
   bool _locationInsideBeira = false;
   bool _resolvingLocation = false;
   String? _locationError;
@@ -55,6 +59,16 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
   Categoria? _selectedCategoria;
   Gravidade _gravidade = Gravidade.media;
 
+  // Estado da Classificação por IA (RF-010, RF-011, RN-005)
+  bool _isAnalyzingAI = false;
+  DenunciaAIClassificationResult? _aiResult;
+  Categoria? _aiOriginalCategoria;
+  Gravidade? _aiOriginalGravidade;
+
+  bool get _isManualCorrectionApplied =>
+      _aiResult != null &&
+      (_selectedCategoria != _aiOriginalCategoria || _gravidade != _aiOriginalGravidade);
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +76,10 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     // Foto recuperada após o Android ter matado a app durante a câmara.
     if (widget.initialImagePath != null) {
       _imagePath = widget.initialImagePath;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _resolveLocation());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _resolveLocation();
+        _runAIClassification(widget.initialImagePath!);
+      });
     }
   }
 
@@ -83,15 +100,89 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     }
   }
 
+  Future<void> _runAIClassification(String imagePath) async {
+    if (!widget.isOnline) return;
+
+    setState(() {
+      _isAnalyzingAI = true;
+      _aiResult = null;
+    });
+
+    try {
+      final fileBytes = await File(imagePath).readAsBytes();
+      final aiResult = await _geminiService.classifyReportImage(fileBytes);
+      if (!mounted) return;
+
+      if (aiResult != null) {
+        _aiResult = aiResult;
+        _gravidade = aiResult.gravidadeSugerida;
+        _aiOriginalGravidade = aiResult.gravidadeSugerida;
+
+        // Tentar mapear categoria sugerida pela IA para as categorias existentes
+        if (_categorias.isNotEmpty) {
+          final matched = _categorias.firstWhere(
+            (c) => c.nome.toLowerCase().contains(aiResult.categoriaSugerida.toLowerCase()) ||
+                aiResult.categoriaSugerida.toLowerCase().contains(c.nome.toLowerCase()),
+            orElse: () => _categorias.first,
+          );
+          _selectedCategoria = matched;
+          _aiOriginalCategoria = matched;
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao classificar imagem com Gemini: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isAnalyzingAI = false);
+      }
+    }
+  }
+
+  void _showPermissionDeniedDialog(String feature) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(LucideIcons.shieldAlert, color: AppColors.error),
+            const SizedBox(width: 8),
+            Text('Permissão de $feature',
+                style: const TextStyle(fontFamily: 'Geist', fontSize: 16, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Para registar uma ocorrência georreferenciada é necessária a permissão de $feature. Ative nas configurações do sistema.',
+          style: const TextStyle(fontFamily: 'Geist', fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar', style: TextStyle(fontFamily: 'Geist')),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              await openAppSettings();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.forestGreen,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Abrir Configurações', style: TextStyle(fontFamily: 'Geist')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _capturePhoto() async {
     final cameraStatus = await Permission.camera.request();
     if (!cameraStatus.isGranted) {
-      _showSnack('Permissão de câmara necessária para denunciar.', isError: true);
+      _showPermissionDeniedDialog('Câmara');
       return;
     }
 
-    // Limites conservadores: reduzem a memória usada e a probabilidade de o
-    // Android matar a app enquanto a câmara está aberta (dispositivos fracos).
     final XFile? photo = await _picker.pickImage(
       source: ImageSource.camera,
       imageQuality: 60,
@@ -102,6 +193,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
 
     setState(() => _imagePath = photo.path);
     await _resolveLocation();
+    await _runAIClassification(photo.path);
   }
 
   Future<void> _resolveLocation() async {
@@ -119,8 +211,11 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
       }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
+      if (permission == LocationPermission.deniedForever) {
+        _showPermissionDeniedDialog('Localização');
+        throw 'Permissão de localização negada permanentemente.';
+      }
+      if (permission == LocationPermission.denied) {
         throw 'Permissão de localização necessária para denunciar.';
       }
 
@@ -135,6 +230,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
       if (!mounted) return;
       setState(() {
         _location = latLng;
+        _locationAccuracy = pos.accuracy;
         _locationInsideBeira = inside;
         _resolvingLocation = false;
       });
@@ -228,6 +324,8 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
                 _buildPhotoSection(isDark),
                 const SizedBox(height: 20),
                 if (_imagePath != null) ...[
+                  _buildAIResultCard(isDark),
+                  const SizedBox(height: 20),
                   _buildLocationSection(isDark),
                   const SizedBox(height: 20),
                   _buildCategoriaSection(isDark, theme),
@@ -242,6 +340,190 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAIResultCard(bool isDark) {
+    if (_isAnalyzingAI) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? DarkColors.surface : AppColors.grey50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.forestGreen.withValues(alpha: 0.3),
+          ),
+        ),
+        child: const Row(
+          children: [
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppColors.forestGreen,
+              ),
+            ),
+            SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                'A Xeni está a analisar a foto com IA (Gemini)...',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.forestGreen,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!widget.isOnline) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        ),
+        child: const Row(
+          children: [
+            Icon(LucideIcons.wifiOff, size: 18, color: AppColors.warning),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Modo Offline: Análise de IA indisponível. Selecione a categoria e gravidade manualmente abaixo.',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.grey900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_aiResult == null) return const SizedBox.shrink();
+
+    final percent = (_aiResult!.confianca * 100).round();
+    final Color confColor;
+    if (percent >= 80) {
+      confColor = const Color(0xFF2E7D32);
+    } else if (percent >= 50) {
+      confColor = const Color(0xFFF57F17);
+    } else {
+      confColor = const Color(0xFFD32F2F);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? DarkColors.surface : AppColors.forestGreen.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.forestGreen.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(LucideIcons.sparkles, size: 18, color: AppColors.forestGreen),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Análise Automática por IA (Xeni)',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.forestGreen,
+                  ),
+                ),
+              ),
+              // Badge de Grau de Confiança (%) - RF-010
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: confColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: confColor.withValues(alpha: 0.4)),
+                ),
+                child: Text(
+                  '$percent% Confiança',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: confColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _aiResult!.explicacao,
+            style: TextStyle(
+              fontFamily: 'Geist',
+              fontSize: 12.5,
+              color: isDark ? Colors.white70 : AppColors.grey800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Badge da Regra de Negócio RN-005 (Correção Manual) - RF-011
+          if (_isManualCorrectionApplied) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(LucideIcons.pencil, size: 14, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontFamily: 'Geist', fontSize: 11.5, color: AppColors.info),
+                        children: [
+                          const TextSpan(
+                            text: 'Correção Manual Aplicada (RN-005)\n',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(
+                            text: 'Sugerido pela IA: ${_aiOriginalCategoria?.nome ?? "Outros"} (${_aiOriginalGravidade?.label ?? "Média"})',
+                            style: const TextStyle(fontSize: 10.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            const Text(
+              'Sugestões aplicadas abaixo. Pode ajustar se necessário (RF-011).',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: AppColors.grey600,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -344,7 +626,8 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     } else if (_location != null) {
       color = AppColors.success;
       icon = LucideIcons.mapPin;
-      text = 'Localização confirmada dentro da Beira.';
+      final accStr = _locationAccuracy != null ? ' (Precisão: ±${_locationAccuracy!.toStringAsFixed(1)}m)' : '';
+      text = 'Localização confirmada na Beira$accStr.';
     } else {
       color = AppColors.grey600;
       icon = LucideIcons.mapPin;

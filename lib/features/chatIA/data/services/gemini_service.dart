@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/config/env/app_env.dart';
+import '../domain/denuncia_ai_classification_result.dart';
 import '../xeni_prompt.dart';
 
 /// Um turno da conversa, usado para dar contexto ao modelo.
@@ -70,6 +71,54 @@ class GeminiService {
     ];
 
     return _generate(contents);
+  }
+
+  /// Classificação estruturada de uma foto de ocorrência (RF-010).
+  /// Retorna um objeto `DenunciaAIClassificationResult` com a categoria, gravidade e explicação.
+  Future<DenunciaAIClassificationResult?> classifyReportImage(
+    Uint8List imageBytes, {
+    String mimeType = 'image/jpeg',
+  }) async {
+    final promptText = '''
+Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num formato JSON válido sem formatação markdown ou código adicional:
+{
+  "categoria": "Nome da categoria provável ex: Plástico, Vidro, Entulho, Matéria Orgânica, Lixo Eletrónico, Papel/Cartão, Metais ou Outros",
+  "gravidade": "baixa ou media ou alta ou critica",
+  "explicacao": "Breve justificativa em 1-2 frases explicando o que foi observado na imagem.",
+  "confianca": 85
+}
+''';
+
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'inline_data': {
+              'mime_type': mimeType,
+              'data': base64Encode(imageBytes),
+            }
+          },
+          {'text': promptText},
+        ],
+      },
+    ];
+
+    try {
+      final rawResponse = await _generate(contents);
+      // Tentar extrair o JSON mesmo se a IA envolver em blocos ```json ... ```
+      String cleanedJson = rawResponse.replaceAll(RegExp(r'^```json\s*|\s*```$'), '').trim();
+      final startIndex = cleanedJson.indexOf('{');
+      final endIndex = cleanedJson.lastIndexOf('}');
+      if (startIndex != -1 && endIndex != -1 && endIndex > startIndex) {
+        cleanedJson = cleanedJson.substring(startIndex, endIndex + 1);
+      }
+      final parsedMap = jsonDecode(cleanedJson) as Map<String, dynamic>;
+      return DenunciaAIClassificationResult.fromJson(parsedMap);
+    } catch (e) {
+      debugPrint('Falha ao processar resposta JSON da IA: $e');
+      return null;
+    }
   }
 
   /// Núcleo da chamada à API, com system prompt, fallback de modelos e retry.

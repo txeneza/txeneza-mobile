@@ -11,6 +11,7 @@ import 'dart:async';
 
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../shared/widgets/layout/app_bar.dart';
+import '../../../../shared/widgets/offline_status_banner.dart';
 import '../../../denuncia/data/denuncia_queue.dart';
 import '../../../denuncia/data/ocorrencia_datasource.dart';
 import '../../../denuncia/presentation/denuncia_capture_page.dart';
@@ -23,6 +24,7 @@ import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../../../notification/data/notificacao_datasource.dart';
 import '../../../notification/presentation/pages/notifications_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../sync/presentation/widgets/sync_queue_sheet.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -35,10 +37,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   int _selectedBottomIndex = 0;
 
-  // Connectivity state
+  // Connectivity & Queue state
   bool _isOnline = true;
   bool _isManualOverride = false;
   bool _isFirstConnectivityEvent = true;
+  int _pendingCount = 0;
   late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
 
   // Map state
@@ -147,8 +150,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Sincroniza denúncias em fila offline; se enviar alguma, recarrega o mapa.
   Future<void> _flushQueue() async {
     try {
+      final initialCount = await _denunciaQueue.pendingCount();
+      if (mounted) setState(() => _pendingCount = initialCount);
+      if (!_isOnline) return;
+
       final enviadas = await _denunciaQueue.flush();
-      if (enviadas > 0) await _loadOccurrences();
+      final remainingCount = await _denunciaQueue.pendingCount();
+      if (mounted) {
+        setState(() => _pendingCount = remainingCount);
+      }
+      if (enviadas > 0) {
+        await _loadOccurrences();
+      }
     } catch (e) {
       debugPrint('Falha ao sincronizar fila de denúncias: $e');
     }
@@ -393,53 +406,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
 
-            // Discrete Floating Offline Warning Banner
-            if (!_isOnline && _selectedBottomIndex == 0)
+            // Discrete Floating Offline / Sync Warning Banner
+            if ((!_isOnline || _pendingCount > 0) && _selectedBottomIndex == 0)
               Positioned(
-                top: MediaQuery.of(context).padding.top + 76.0,
-                left: 20,
-                right: 20,
-                child: Container(
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? const Color(0xFF3D2E00)
-                        : const Color(0xFFFFF3D6),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark
-                          ? const Color(0xFFFFB300).withValues(alpha: 0.25)
-                          : const Color(0xFFFFD54F).withValues(alpha: 0.6),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        LucideIcons.wifiOff,
-                        color: isDark ? const Color(0xFFFFD54F) : const Color(0xFF8D6E00),
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Modo Offline — dados da última sincronização',
-                        style: TextStyle(
-                          fontFamily: 'Geist',
-                          color: isDark ? const Color(0xFFFFD54F) : const Color(0xFF5D4900),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.1,
-                        ),
-                      ),
-                    ],
+                top: MediaQuery.of(context).padding.top + 72.0,
+                left: 12,
+                right: 12,
+                child: OfflineStatusBanner(
+                  isOnline: _isOnline,
+                  pendingCount: _pendingCount,
+                  onSyncTap: () => SyncQueueSheet.show(
+                    context,
+                    isOnline: _isOnline,
+                    onQueueUpdated: _flushQueue,
                   ),
                 ),
               ),
