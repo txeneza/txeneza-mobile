@@ -9,6 +9,7 @@ import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
 import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
+import '../../data/xeni_offline_knowledge.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/image_analysis_modal.dart';
 import '../widgets/typing_indicator.dart';
@@ -253,17 +254,31 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
           });
           await _simulateTypewriter(response);
         }
-        // Persiste a troca no Supabase (não bloqueia a UI).
         _conversacao.save(mensagem: text, resposta: response);
       } catch (e) {
-        _addBotMessage(
-            'Não consegui responder agora. Verifique a ligação e tente novamente.');
+        final fallback = _getOfflineResponse(text);
+        if (mounted) {
+          setState(() {
+            _isTyping = false;
+          });
+          await _simulateTypewriter(fallback);
+        }
       }
     } else {
-      _addBotMessage(
-          'Sem ligação à internet. A Xeni precisa de rede para responder — tente novamente quando estiver online.');
+      final offlineResponse = _getOfflineResponse(text);
+      if (mounted) {
+        setState(() {
+          _isTyping = false;
+        });
+        await _simulateTypewriter(offlineResponse);
+      }
     }
     _scrollToBottom();
+  }
+
+  /// Devolve respostas padrão da Xeni para perguntas frequentes quando offline.
+  String _getOfflineResponse(String input) {
+    return XeniOfflineKnowledge.getResponse(input);
   }
 
   void _addBotMessage(String text) {
@@ -288,25 +303,32 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
 
     final completer = Completer<void>();
     int charIndex = 0;
+    final int totalLength = fullText.length;
+    const int chunkSize = 6;
 
-    Timer.periodic(const Duration(milliseconds: 15), (timer) {
+    Timer.periodic(const Duration(milliseconds: 18), (timer) {
       if (!mounted) {
         timer.cancel();
-        completer.complete();
+        if (!completer.isCompleted) completer.complete();
         return;
       }
 
+      charIndex += chunkSize;
+      final isFinished = charIndex >= totalLength;
+      final currentText = isFinished ? fullText : fullText.substring(0, charIndex);
+
       setState(() {
-        if (charIndex < fullText.length) {
-          final increment = (fullText.length - charIndex) > 3 ? 3 : (fullText.length - charIndex);
-          botMessage['text'] = fullText.substring(0, charIndex + increment);
-          charIndex += increment;
-          _scrollToBottom();
-        } else {
-          timer.cancel();
-          completer.complete();
-        }
+        botMessage['text'] = currentText;
       });
+
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      }
+
+      if (isFinished) {
+        timer.cancel();
+        if (!completer.isCompleted) completer.complete();
+      }
     });
 
     return completer.future;
@@ -623,14 +645,14 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                               ],
                             ),
                             const SizedBox(height: 2),
-                            // Current Active Model engine banner
                             Text(
                               _isOnline
                                   ? 'Gemini 2.5 Flash (Online)'
-                                  : 'Sem ligação',
+                                  : 'Xeni (Modo Offline)',
                               style: TextStyles.captionSmall.copyWith(
-                                color: AppColors.grey600,
-                                fontSize: 10,
+                                color: _isOnline ? AppColors.grey600 : AppColors.warning,
+                                fontSize: 10.5,
+                                fontWeight: _isOnline ? FontWeight.normal : FontWeight.w600,
                               ),
                             ),
                           ],
