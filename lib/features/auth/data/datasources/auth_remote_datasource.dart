@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/beira_neighborhoods.dart';
 import '../models/user_model.dart';
@@ -20,6 +21,9 @@ class AuthRemoteDataSource {
     if (user == null) {
       throw Exception('Não foi possível iniciar sessão.');
     }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', true);
 
     return mapUser(user);
   }
@@ -49,6 +53,9 @@ class AuthRemoteDataSource {
       throw Exception('Não foi possível criar a conta.');
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', true);
+
     final userModel = UserModel(
       id: user.id,
       fullName: cleanName,
@@ -62,6 +69,8 @@ class AuthRemoteDataSource {
   }
 
   Future<void> signInWithGoogle() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', true);
     await _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: _googleRedirectUrl,
@@ -70,7 +79,11 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<void> logout() => _client.auth.signOut();
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_logged_in', false);
+    await _client.auth.signOut();
+  }
 
   Future<List<String>> getNeighborhoods() async {
     // Lista fixa de bairros da Beira, não depende do backend.

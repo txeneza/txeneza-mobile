@@ -9,7 +9,7 @@ import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
 import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
-import '../../data/xeni_offline_knowledge.dart';
+import '../../data/xeni_offline_interactive.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/image_analysis_modal.dart';
 import '../widgets/typing_indicator.dart';
@@ -46,6 +46,8 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     'Quais são os pontos de coleta na Beira?',
     'Tempo de resposta para denúncias',
   ];
+
+  List<XeniOfflineOption> _currentOfflineOptions = XeniOfflineInteractive.mainMenuOptions;
 
   @override
   void initState() {
@@ -278,7 +280,32 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
 
   /// Devolve respostas padrão da Xeni para perguntas frequentes quando offline.
   String _getOfflineResponse(String input) {
-    return XeniOfflineKnowledge.getResponse(input);
+    return XeniOfflineInteractive.getFallbackResponse(input);
+  }
+
+  /// Trata o clique numa opção interativa predefinida no modo offline com sub-árvore de opções.
+  Future<void> _onOfflineOptionTap(XeniOfflineOption option) async {
+    if (_isTyping) return;
+    setState(() {
+      _messages.add({
+        'text': option.label,
+        'isUser': true,
+        'time': 'Agora',
+      });
+      _isTyping = true;
+    });
+    _scrollToBottom();
+    await _simulateTypewriter(option.responseText);
+    if (mounted) {
+      setState(() {
+        if (option.id == 'voltar_menu' || option.followUpOptions == null || option.followUpOptions!.isEmpty) {
+          _currentOfflineOptions = XeniOfflineInteractive.mainMenuOptions;
+        } else {
+          _currentOfflineOptions = option.followUpOptions!;
+        }
+      });
+      _scrollToBottom();
+    }
   }
 
   void _addBotMessage(String text) {
@@ -424,41 +451,76 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 ),
               ),
 
-              // Suggestions chips (Shown only on fresh conversation)
-              if (_messages.length == 1 && !_isTyping)
+              // Interactive Options Chips (Online initial suggestions OR Offline interactive options)
+              if (!_isTyping && (!_isOnline || _messages.length == 1))
                 Container(
                   height: 48,
                   margin: const EdgeInsets.only(bottom: AppSpacing.xs),
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                    itemCount: _suggestions.length,
+                    itemCount: _isOnline ? _suggestions.length : _currentOfflineOptions.length,
                     itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.xs),
-                        child: ActionChip(
-                          label: Text(
-                            _suggestions[index],
-                            style: TextStyles.captionSmall.copyWith(
-                              color: AppColors.forestGreen,
-                              fontWeight: FontWeight.w600,
+                      if (_isOnline) {
+                        final sugg = _suggestions[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.xs),
+                          child: ActionChip(
+                            label: Text(
+                              sugg,
+                              style: TextStyles.captionSmall.copyWith(
+                                color: AppColors.forestGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                            backgroundColor: AppColors.mintGreen.withValues(alpha: 0.35),
+                            side: BorderSide(
+                              color: AppColors.sageGreen.withValues(alpha: 0.5),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            onPressed: () => _sendMessage(sugg),
                           ),
-                          backgroundColor: AppColors.mintGreen.withValues(alpha: 0.35),
-                          side: BorderSide(
-                            color: AppColors.sageGreen.withValues(alpha: 0.5),
+                        );
+                      } else {
+                        final option = _currentOfflineOptions[index];
+                        final isReturn = option.id == 'voltar_menu';
+                        return Padding(
+                          padding: const EdgeInsets.only(right: AppSpacing.xs),
+                          child: ActionChip(
+                            avatar: Icon(
+                              isReturn ? LucideIcons.arrowLeft : LucideIcons.mousePointerClick,
+                              size: 14,
+                              color: isReturn ? AppColors.error : AppColors.forestGreen,
+                            ),
+                            label: Text(
+                              option.label,
+                              style: TextStyles.captionSmall.copyWith(
+                                color: isReturn ? AppColors.error : AppColors.forestGreen,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            backgroundColor: isReturn
+                                ? AppColors.error.withValues(alpha: 0.1)
+                                : AppColors.mintGreen.withValues(alpha: 0.35),
+                            side: BorderSide(
+                              color: isReturn
+                                  ? AppColors.error.withValues(alpha: 0.4)
+                                  : AppColors.sageGreen.withValues(alpha: 0.6),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            onPressed: () => _onOfflineOptionTap(option),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          onPressed: () => _sendMessage(_suggestions[index]),
-                        ),
-                      );
+                        );
+                      }
                     },
                   ),
                 ),
 
-              // Input Bottom Bar
+              // Input Bottom Bar (Desabilitada quando offline)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
                 decoration: BoxDecoration(
@@ -472,26 +534,29 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 ),
                 child: Row(
                   children: [
-                    // Simulated attachment camera button
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: AppColors.forestGreen.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          LucideIcons.camera,
-                          color: AppColors.forestGreen,
-                          size: 20,
+                    // Botão da câmara
+                    Opacity(
+                      opacity: _isOnline ? 1.0 : 0.4,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.forestGreen.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                        onPressed: _openImageSelectionModal,
+                        child: IconButton(
+                          icon: const Icon(
+                            LucideIcons.camera,
+                            color: AppColors.forestGreen,
+                            size: 20,
+                          ),
+                          onPressed: _isOnline ? _openImageSelectionModal : null,
+                        ),
                       ),
                     ),
                     AppSpacing.horizontalSpaceSM,
 
-                    // Text Field
+                    // Campo de Texto (Desabilitado no modo offline)
                     Expanded(
                       child: Container(
                         height: 44,
@@ -501,14 +566,18 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                         ),
                         child: TextField(
                           controller: _messageController,
-                          onSubmitted: _sendMessage,
+                          enabled: _isOnline,
+                          onSubmitted: _isOnline ? _sendMessage : null,
                           style: TextStyles.captionLarge.copyWith(
                             color: isDark ? AppColors.white : AppColors.grey900,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Fale com a Xeni sobre resíduos...',
+                            hintText: _isOnline
+                                ? 'Fale com a Xeni sobre resíduos...'
+                                : 'Modo offline: toque numa opção acima',
                             hintStyle: TextStyles.captionLarge.copyWith(
                               color: AppColors.grey600,
+                              fontSize: _isOnline ? 13 : 11.5,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 10),
@@ -518,21 +587,24 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                     ),
                     AppSpacing.horizontalSpaceSM,
 
-                    // Send Button
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: AppColors.forestGreen,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        icon: const Icon(
-                          LucideIcons.send,
-                          color: AppColors.white,
-                          size: 16,
+                    // Botão Enviar
+                    Opacity(
+                      opacity: _isOnline ? 1.0 : 0.4,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: _isOnline ? AppColors.forestGreen : AppColors.grey400,
+                          shape: BoxShape.circle,
                         ),
-                        onPressed: () => _sendMessage(_messageController.text),
+                        child: IconButton(
+                          icon: const Icon(
+                            LucideIcons.send,
+                            color: AppColors.white,
+                            size: 16,
+                          ),
+                          onPressed: _isOnline ? () => _sendMessage(_messageController.text) : null,
+                        ),
                       ),
                     ),
                   ],

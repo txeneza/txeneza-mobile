@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../home/presentation/pages/report_detail_page.dart';
 import '../../../occurrence/presentation/pages/resolucao_verification_page.dart';
+import '../../../profile/domain/my_report.dart';
 import '../../data/notificacao_datasource.dart';
 import '../../domain/notificacao_model.dart';
 import '../widgets/notification_tile.dart';
@@ -21,7 +24,7 @@ class NotificationsPage extends StatefulWidget {
 }
 
 class _NotificationsPageState extends State<NotificationsPage> {
-  final _dataSource = NotificacaoDataSource();
+  final NotificacaoDataSource _dataSource = NotificacaoDataSource();
   List<NotificacaoModel> _notificacoes = [];
   bool _isLoading = true;
   bool _hasError = false;
@@ -29,23 +32,23 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadNotificacoes();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadNotificacoes() async {
     setState(() {
       _isLoading = true;
       _hasError = false;
     });
 
     try {
-      final result = await _dataSource.fetchNotificacoes();
+      final items = await _dataSource.fetchNotificacoes();
       if (!mounted) return;
       setState(() {
-        _notificacoes = result;
+        _notificacoes = items;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       // fetchNotificacoes() já trata os próprios erros e devolve lista
       // vazia; este catch é só uma rede de segurança adicional para nunca
       // deixar o ecrã quebrar.
@@ -73,13 +76,98 @@ class _NotificationsPageState extends State<NotificationsPage> {
     // só para marcar como lida, sem navegação.
     if (notif.idOcorrencia == null || !mounted) return;
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ResolucaoVerificationPage(
-          occurrenceId: notif.idOcorrencia!,
-          occurrenceTitle: 'Ocorrência',
+    try {
+      final client = Supabase.instance.client;
+      final row = await client
+          .from('ocorrencia')
+          .select(
+            'id_ocorrencia, descricao, latitude, longitude, estado, gravidade, '
+            'data_hora_registo, categoria_residuo(nome), '
+            'fotografia(caminho_ficheiro, tipo)',
+          )
+          .eq('id_ocorrencia', notif.idOcorrencia!)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (row != null) {
+        final report = _mapRowToReport(row, client);
+
+        if (report.estado == 'resolvida') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ResolucaoVerificationPage(
+                occurrenceId: report.id,
+                occurrenceTitle: report.descricao,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReportDetailPage(report: report),
+            ),
+          );
+        }
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ResolucaoVerificationPage(
+              occurrenceId: notif.idOcorrencia!,
+              occurrenceTitle: 'Ocorrência',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Erro ao carregar detalhes da ocorrência na notificação: $e');
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResolucaoVerificationPage(
+            occurrenceId: notif.idOcorrencia!,
+            occurrenceTitle: 'Ocorrência',
+          ),
         ),
-      ),
+      );
+    }
+  }
+
+  MyReport _mapRowToReport(Map<String, dynamic> row, SupabaseClient client) {
+    final categoria = row['categoria_residuo'] as Map<String, dynamic>?;
+    final nomeCategoria = categoria?['nome'] as String? ?? 'Resíduo';
+    final descricao = (row['descricao'] as String?)?.trim();
+
+    String? photoUrl;
+    final fotos = row['fotografia'] as List?;
+    if (fotos != null && fotos.isNotEmpty) {
+      final foto = fotos.cast<Map<String, dynamic>>().firstWhere(
+            (f) => f['tipo'] == 'denuncia',
+            orElse: () => fotos.first as Map<String, dynamic>,
+          );
+      final path = foto['caminho_ficheiro'] as String?;
+      if (path != null && path.isNotEmpty) {
+        if (path.startsWith('http://') || path.startsWith('https://')) {
+          photoUrl = path;
+        } else {
+          photoUrl = client.storage.from('denuncias').getPublicUrl(path);
+        }
+      }
+    }
+
+    return MyReport(
+      id: row['id_ocorrencia'] as String,
+      photoUrl: photoUrl,
+      categoria: nomeCategoria,
+      descricao: (descricao != null && descricao.isNotEmpty)
+          ? descricao
+          : 'Ocorrência de resíduo reportada.',
+      latitude: double.tryParse(row['latitude'].toString()) ?? 0,
+      longitude: double.tryParse(row['longitude'].toString()) ?? 0,
+      estado: row['estado'] as String? ?? 'pendente',
+      gravidade: row['gravidade'] as String? ?? 'media',
+      dataHora: DateTime.tryParse(row['data_hora_registo'].toString()) ??
+          DateTime.now(),
     );
   }
 
@@ -127,7 +215,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _load,
+        onRefresh: _loadNotificacoes,
         color: AppColors.forestGreen,
         child: _isLoading
             ? const Center(child: CircularProgressIndicator(color: AppColors.forestGreen))

@@ -1,3 +1,4 @@
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -53,6 +54,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirm != true || !mounted) return;
 
     try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_logged_in', false);
       await Supabase.instance.client.auth.signOut();
     } catch (e) {
       debugPrint('Erro ao fazer sign out: $e');

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -273,11 +274,21 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(13),
-        child: url != null
-            ? Image.network(
-                url,
+        child: url != null && url.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: url,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _buildPlaceholder(title, isDark),
+                placeholder: (context, url) => Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => _buildPlaceholder(title, isDark),
               )
             : _buildPlaceholder(title, isDark),
       ),

@@ -38,10 +38,14 @@ class _AppState extends State<App> {
         return AppRoutes.onboarding;
       }
 
-      final hasSession = Supabase.instance.client.auth.currentSession != null;
-      if (!hasSession) return AppRoutes.login;
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final currentSession = Supabase.instance.client.auth.currentSession;
+      final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
 
-      // Se o utilizador estiver offline ou a ligacao for lenta, o timeout garante que a app avanca
+      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+      if (!hasUserSession) return AppRoutes.login;
+
+      // Se o utilizador estiver offline ou a ligação for lenta, o timeout garante que a app avança
       final needsCompletion = await ProfileCompletionService()
           .needsCompletion()
           .timeout(
@@ -49,7 +53,7 @@ class _AppState extends State<App> {
             onTimeout: () => false,
           );
 
-      // Garante uma exibicao minima do Splash de 1.5s para transicao suave
+      // Garante uma exibição mínima do Splash de 1.5s para transição suave
       final elapsed = DateTime.now().difference(startTime);
       if (elapsed < const Duration(milliseconds: 1500)) {
         await Future.delayed(const Duration(milliseconds: 1500) - elapsed);
@@ -57,8 +61,13 @@ class _AppState extends State<App> {
 
       return needsCompletion ? AppRoutes.completeProfile : AppRoutes.home;
     } catch (e) {
-      final hasSession = Supabase.instance.client.auth.currentSession != null;
-      return hasSession ? AppRoutes.home : AppRoutes.login;
+      final prefs = await SharedPreferences.getInstance();
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final currentSession = Supabase.instance.client.auth.currentSession;
+      final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
+      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+
+      return hasUserSession ? AppRoutes.home : AppRoutes.login;
     }
   }
 

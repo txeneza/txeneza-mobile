@@ -155,9 +155,13 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         return;
       }
 
-      final hasSession = Supabase.instance.client.auth.currentSession != null;
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      final currentSession = Supabase.instance.client.auth.currentSession;
+      final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
+      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+
       if (!mounted) return;
-      if (!hasSession) {
+      if (!hasUserSession) {
         Navigator.of(context).pushReplacementNamed(AppRoutes.login);
         return;
       }
@@ -174,9 +178,14 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
       );
     } catch (_) {
       if (mounted) {
-        final hasSession = Supabase.instance.client.auth.currentSession != null;
+        final prefs = await SharedPreferences.getInstance();
+        final currentUser = Supabase.instance.client.auth.currentUser;
+        final currentSession = Supabase.instance.client.auth.currentSession;
+        final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
+        final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+
         Navigator.of(context).pushReplacementNamed(
-          hasSession ? AppRoutes.home : AppRoutes.login,
+          hasUserSession ? AppRoutes.home : AppRoutes.login,
         );
       }
     }

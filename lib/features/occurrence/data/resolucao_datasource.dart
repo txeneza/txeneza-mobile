@@ -10,26 +10,78 @@ class ResolucaoDataSource {
 
   /// Obtém a verificação e fotos associadas a uma ocorrência.
   Future<ResolucaoVerificacao> fetchVerificacao(String idOcorrencia) async {
-    final photos = await _client
-        .from('fotografia')
-        .select('caminho_ficheiro, tipo')
-        .eq('id_ocorrencia', idOcorrencia);
-
     String? fotoInicialPath;
     String? fotoResolucaoPath;
+    String? observacoesEquipa;
 
-    for (final row in (photos as List)) {
-      final tipo = row['tipo'] as String?;
-      final path = row['caminho_ficheiro'] as String?;
-      if (path != null) {
-        if (tipo == 'denuncia') {
-          fotoInicialPath = path;
-        } else if (tipo == 'resolucao') {
-          fotoResolucaoPath = path;
+    // 1. Procurar na tabela "verificacao_resolucao"
+    try {
+      final verRows = await _client
+          .from('verificacao_resolucao')
+          .select('id_foto_verificacao, observacoes')
+          .eq('id_ocorrencia', idOcorrencia);
+
+      if (verRows is List && verRows.isNotEmpty) {
+        final lastVer = verRows.last as Map<String, dynamic>;
+        observacoesEquipa = lastVer['observacoes'] as String?;
+        final idFotoVer = lastVer['id_foto_verificacao'] as String?;
+
+        if (idFotoVer != null && idFotoVer.isNotEmpty) {
+          final fotoRow = await _client
+              .from('fotografia')
+              .select('caminho_ficheiro')
+              .eq('id_fotografia', idFotoVer)
+              .maybeSingle();
+
+          if (fotoRow != null && fotoRow['caminho_ficheiro'] != null) {
+            fotoResolucaoPath = fotoRow['caminho_ficheiro'] as String;
+          }
         }
       }
+    } catch (e) {
+      debugPrint('Aviso ao consultar verificacao_resolucao: $e');
     }
 
+    // 2. Procurar na tabela "fotografia" por id_ocorrencia
+    try {
+      final photos = await _client
+          .from('fotografia')
+          .select('caminho_ficheiro, tipo, data_hora')
+          .eq('id_ocorrencia', idOcorrencia)
+          .order('data_hora', ascending: true);
+
+      for (final row in (photos as List)) {
+        final tipo = (row['tipo'] as String?)?.toLowerCase().trim();
+        final path = row['caminho_ficheiro'] as String?;
+
+        if (path != null && path.isNotEmpty) {
+          if (tipo == 'denuncia') {
+            fotoInicialPath = path;
+          } else if (tipo == 'verificacao' ||
+                     tipo == 'resolucao' ||
+                     tipo == 'solucao' ||
+                     tipo == 'resolvida') {
+            fotoResolucaoPath = path;
+          }
+        }
+      }
+
+      // Se ainda não encontrou fotoResolucaoPath, mas existem 2 ou mais fotos,
+      // a última foto que não é a fotoInicialPath é a foto de resolução.
+      if (fotoResolucaoPath == null && photos.length >= 2) {
+        for (final row in (photos as List).reversed) {
+          final path = row['caminho_ficheiro'] as String?;
+          if (path != null && path.isNotEmpty && path != fotoInicialPath) {
+            fotoResolucaoPath = path;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao buscar fotos em fotografia: $e');
+    }
+
+    // 3. Obter detalhes da ocorrência
     Map<String, dynamic>? occ;
     try {
       occ = await _client
@@ -37,16 +89,26 @@ class ResolucaoDataSource {
           .select('data_hora_sync, descricao')
           .eq('id_ocorrencia', idOcorrencia)
           .maybeSingle();
+
+      if (observacoesEquipa == null || observacoesEquipa.isEmpty) {
+        observacoesEquipa = occ?['descricao'] as String?;
+      }
     } catch (e) {
       debugPrint('Aviso ao carregar ocorrencia: $e');
     }
 
-    final String? urlInicial = fotoInicialPath != null
-        ? _client.storage.from(_bucket).getPublicUrl(fotoInicialPath)
-        : null;
-    final String? urlResolucao = fotoResolucaoPath != null
-        ? _client.storage.from(_bucket).getPublicUrl(fotoResolucaoPath)
-        : null;
+    // 4. Formatar URLs públicas das imagens
+    String? formatUrl(String? path) {
+      if (path == null || path.trim().isEmpty) return null;
+      final trimmed = path.trim();
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+      }
+      return _client.storage.from(_bucket).getPublicUrl(trimmed);
+    }
+
+    final String? urlInicial = formatUrl(fotoInicialPath);
+    final String? urlResolucao = formatUrl(fotoResolucaoPath);
 
     return ResolucaoVerificacao(
       idOcorrencia: idOcorrencia,
@@ -54,8 +116,8 @@ class ResolucaoDataSource {
       fotoResolucaoUrl: urlResolucao,
       dataResolucao: occ != null && occ['data_hora_sync'] != null
           ? DateTime.tryParse(occ['data_hora_sync'] as String)
-          : null,
-      observacoesEquipa: occ?['descricao'] as String?,
+          : DateTime.now(),
+      observacoesEquipa: observacoesEquipa,
       statusVerificacao: StatusVerificacaoMorador.pendente,
       observacoesMorador: null,
     );
