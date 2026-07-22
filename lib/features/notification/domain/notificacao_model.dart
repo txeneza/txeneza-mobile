@@ -60,4 +60,16 @@ class NotificacaoModel {
       dataHora: dataHora,
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id_notificacao': id,
+      'id_utilizador': idUtilizador,
+      'id_ocorrencia': idOcorrencia,
+      'tipo': tipo,
+      'mensagem': mensagem,
+      'lida': lida,
+      'data_hora': dataHora.toIso8601String(),
+    };
+  }
 }

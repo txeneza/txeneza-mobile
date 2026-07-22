@@ -10,8 +10,15 @@ import '../pages/report_detail_page.dart';
 /// por cima da descrição, com o estado sobreposto na imagem.
 class MyReportsView extends StatefulWidget {
   final List<MyReport> reports;
+  final RefreshCallback? onRefresh;
+  final VoidCallback? onItemReturned;
 
-  const MyReportsView({super.key, required this.reports});
+  const MyReportsView({
+    super.key,
+    required this.reports,
+    this.onRefresh,
+    this.onItemReturned,
+  });
 
   @override
   State<MyReportsView> createState() => _MyReportsViewState();
@@ -37,15 +44,23 @@ class _MyReportsViewState extends State<MyReportsView> {
       return matchesSearch && matchesFilter;
     }).toList();
 
-    return Column(
+    final content = Column(
       children: [
         _buildSearchAndFilters(isDark),
         Expanded(
           child: filtered.isEmpty
-              ? _buildEmptyState(isDark)
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: SizedBox(
+                    height: MediaQuery.of(context).size.height * 0.6,
+                    child: _buildEmptyState(isDark),
+                  ),
+                )
               : GridView.builder(
                   padding: const EdgeInsets.all(AppSpacing.md),
-                  physics: const BouncingScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
@@ -54,12 +69,25 @@ class _MyReportsViewState extends State<MyReportsView> {
                     childAspectRatio: 0.70,
                   ),
                   itemCount: filtered.length,
-                  itemBuilder: (context, index) =>
-                      _ReportCard(report: filtered[index], isDark: isDark),
+                  itemBuilder: (context, index) => _ReportCard(
+                    report: filtered[index],
+                    isDark: isDark,
+                    onItemReturned: widget.onItemReturned,
+                  ),
                 ),
         ),
       ],
     );
+
+    if (widget.onRefresh != null) {
+      return RefreshIndicator(
+        color: AppColors.forestGreen,
+        onRefresh: widget.onRefresh!,
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   Widget _buildSearchAndFilters(bool isDark) {
@@ -184,15 +212,23 @@ class _MyReportsViewState extends State<MyReportsView> {
 class _ReportCard extends StatelessWidget {
   final MyReport report;
   final bool isDark;
+  final VoidCallback? onItemReturned;
 
-  const _ReportCard({required this.report, required this.isDark});
+  const _ReportCard({
+    required this.report,
+    required this.isDark,
+    this.onItemReturned,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ReportDetailPage(report: report)),
-      ),
+      onTap: () async {
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ReportDetailPage(report: report)),
+        );
+        onItemReturned?.call();
+      },
       behavior: HitTestBehavior.opaque,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

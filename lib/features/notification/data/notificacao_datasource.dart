@@ -1,23 +1,18 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/notificacao_model.dart';
 
 /// Lê as notificações do morador e marca-as como lidas.
-///
-/// A app móvel NUNCA cria notificações — quem cria é sempre o backend web,
-/// na mesma transação em que altera o estado de uma ocorrência ou regista
-/// uma verificação de resolução (ver txeneza-web:
-/// src/app/api/occurrences/[id]/route.ts e
-/// src/app/api/occurrences/[id]/verifications/route.ts). Este datasource
-/// existe só para ler e marcar como lida.
+/// Suporta cache local (SharedPreferences) para funcionamento offline.
 class NotificacaoDataSource {
+  static const String _prefsKeyPrefix = 'notificacoes_cache_';
+
   SupabaseClient get _client => Supabase.instance.client;
 
   /// Lê as notificações do utilizador autenticado, da mais recente para a
-  /// mais antiga. Nunca lança exceção: se a leitura falhar (sem rede, RLS
-  /// mal configurado, etc.) devolve lista vazia, para o ecrã mostrar um
-  /// estado vazio/discreto em vez de quebrar (mesmo cuidado já usado em
-  /// PontoRecolhaDataSource/_loadPontosRecolha).
+  /// mais antiga. Se a leitura de rede falhar (ex: offline), carrega da cache local.
   Future<List<NotificacaoModel>> fetchNotificacoes() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
@@ -29,12 +24,15 @@ class NotificacaoDataSource {
           .eq('id_utilizador', userId)
           .order('data_hora', ascending: false);
 
-      return (rows as List)
+      final list = (rows as List)
           .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
           .toList();
+
+      await _saveToCache(userId, list);
+      return list;
     } catch (e) {
-      debugPrint('Erro ao buscar notificações: $e');
-      return [];
+      debugPrint('Rede indisponível para notificações ($e). A carregar cache local...');
+      return await _loadFromCache(userId);
     }
   }
 
@@ -43,6 +41,15 @@ class NotificacaoDataSource {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
+    final cached = await _loadFromCache(userId);
+    final updatedList = cached.map((n) {
+      if (n.id == idNotificacao) {
+        return n.copyWith(lida: true);
+      }
+      return n;
+    }).toList();
+    await _saveToCache(userId, updatedList);
+
     try {
       await _client
           .from('notificacao')
@@ -50,15 +57,18 @@ class NotificacaoDataSource {
           .eq('id_notificacao', idNotificacao)
           .eq('id_utilizador', userId);
     } catch (e) {
-      debugPrint('Erro ao marcar notificação como lida: $e');
+      debugPrint('Erro ao marcar notificação como lida no Supabase: $e');
     }
   }
 
-  /// Marca todas as notificações não lidas do utilizador como lidas de
-  /// uma vez (botão "marcar tudo como lido").
+  /// Marca todas as notificações não lidas do utilizador como lidas de uma vez.
   Future<void> marcarTodasComoLidas() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
+
+    final cached = await _loadFromCache(userId);
+    final updatedList = cached.map((n) => n.copyWith(lida: true)).toList();
+    await _saveToCache(userId, updatedList);
 
     try {
       await _client
@@ -67,7 +77,32 @@ class NotificacaoDataSource {
           .eq('id_utilizador', userId)
           .eq('lida', false);
     } catch (e) {
-      debugPrint('Erro ao marcar todas as notificações como lidas: $e');
+      debugPrint('Erro ao marcar todas as notificações como lidas no Supabase: $e');
+    }
+  }
+
+  Future<void> _saveToCache(String userId, List<NotificacaoModel> list) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = jsonEncode(list.map((n) => n.toJson()).toList());
+      await prefs.setString('$_prefsKeyPrefix$userId', encoded);
+    } catch (e) {
+      debugPrint('Erro ao gravar cache de notificações: $e');
+    }
+  }
+
+  Future<List<NotificacaoModel>> _loadFromCache(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_prefsKeyPrefix$userId');
+      if (raw == null) return [];
+      final decoded = jsonDecode(raw) as List;
+      return decoded
+          .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      debugPrint('Erro ao carregar cache de notificações: $e');
+      return [];
     }
   }
 

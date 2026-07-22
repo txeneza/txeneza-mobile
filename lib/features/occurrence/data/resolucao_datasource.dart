@@ -29,11 +29,16 @@ class ResolucaoDataSource {
       }
     }
 
-    final occ = await _client
-        .from('ocorrencia')
-        .select('data_hora_sync, observacoes, verificacao_morador, observacoes_morador')
-        .eq('id_ocorrencia', idOcorrencia)
-        .maybeSingle();
+    Map<String, dynamic>? occ;
+    try {
+      occ = await _client
+          .from('ocorrencia')
+          .select('data_hora_sync, descricao')
+          .eq('id_ocorrencia', idOcorrencia)
+          .maybeSingle();
+    } catch (e) {
+      debugPrint('Aviso ao carregar ocorrencia: $e');
+    }
 
     final String? urlInicial = fotoInicialPath != null
         ? _client.storage.from(_bucket).getPublicUrl(fotoInicialPath)
@@ -49,10 +54,9 @@ class ResolucaoDataSource {
       dataResolucao: occ != null && occ['data_hora_sync'] != null
           ? DateTime.tryParse(occ['data_hora_sync'] as String)
           : null,
-      observacoesEquipa: occ?['observacoes'] as String?,
-      statusVerificacao: StatusVerificacaoMorador.fromDb(
-          occ?['verificacao_morador'] as String?),
-      observacoesMorador: occ?['observacoes_morador'] as String?,
+      observacoesEquipa: occ?['descricao'] as String?,
+      statusVerificacao: StatusVerificacaoMorador.pendente,
+      observacoesMorador: null,
     );
   }
 
@@ -92,16 +96,19 @@ class ResolucaoDataSource {
       }
     }
 
-    final payload = <String, dynamic>{
-      'verificacao_morador': statusStr,
-      'observacoes_morador': observacoes,
-    };
+    final payload = <String, dynamic>{};
 
     if (!aprovado) {
-      // Se contestado, o estado da ocorrência volta para em_analise/reaberta
+      // Se contestado, o estado da ocorrência volta para reaberta
       payload['estado'] = 'reaberta';
     }
 
-    await _client.from('ocorrencia').update(payload).eq('id_ocorrencia', idOcorrencia);
+    if (payload.isNotEmpty) {
+      try {
+        await _client.from('ocorrencia').update(payload).eq('id_ocorrencia', idOcorrencia);
+      } catch (e) {
+        debugPrint('Erro ao atualizar estado da ocorrência: $e');
+      }
+    }
   }
 }
