@@ -106,8 +106,16 @@ class _PermissionPageState extends State<PermissionPage> {
       });
     }
 
-    // Notificações: são opcionais e não interrompem a abertura inicial da aplicação (UX).
-    // Podem ser ativadas posteriormente nas Definições do Perfil ou ao subscrever ocorrências.
+    // Request Notifications
+    if (!_notificationGranted) {
+      final notifGranted = await FCMService.requestPermission();
+      setState(() {
+        _notificationGranted = notifGranted;
+        if (!notifGranted) {
+          _notificationDeniedOnce = true;
+        }
+      });
+    }
   }
 
   Future<void> _requestWebPermissions() async {

@@ -23,6 +23,7 @@ import '../../../map/presentation/pages/map_page.dart';
 import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../../../notification/data/notificacao_datasource.dart';
 import '../../../notification/presentation/pages/notifications_page.dart';
+import '../../../notification/services/fcm_service.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../sync/presentation/widgets/sync_queue_sheet.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
@@ -77,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _recuperarFotoPerdida();
     _loadUnreadCount();
     _subscribeToNotificacoes();
+    FCMService.syncToken();
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
       if (!_isManualOverride) {
         _updateConnectionStatus(results);

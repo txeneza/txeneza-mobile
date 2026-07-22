@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../core/config/env/app_env.dart';
-import '../domain/denuncia_ai_classification_result.dart';
+import '../../domain/denuncia_ai_classification_result.dart';
 import '../xeni_prompt.dart';
 
 /// Um turno da conversa, usado para dar contexto ao modelo.

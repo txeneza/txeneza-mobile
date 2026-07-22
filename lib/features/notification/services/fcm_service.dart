@@ -83,7 +83,7 @@ class FCMService {
           settings.authorizationStatus == AuthorizationStatus.provisional;
 
       if (granted) {
-        await _fetchAndSaveToken();
+        await syncToken();
       }
 
       return granted;
@@ -96,7 +96,7 @@ class FCMService {
   /// Obtém o token FCM atual do dispositivo e guarda-o no Supabase, para o
   /// backend (painel admin / função servidor) poder enviar pushes
   /// direcionados a este utilizador.
-  static Future<void> _fetchAndSaveToken() async {
+  static Future<void> syncToken() async {
     try {
       final token = await _messaging.getToken();
       if (token != null) {
