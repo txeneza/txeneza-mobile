@@ -198,15 +198,21 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
           ),
           const SizedBox(height: 6),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(LucideIcons.checkCheck, size: 16, color: AppColors.forestGreen),
-              const SizedBox(width: 6),
-              Text(
-                'A equipa municipal marcou esta denúncia como limpa/resolvida.',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 12.5,
-                  color: isDark ? Colors.white70 : AppColors.grey800,
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(LucideIcons.checkCheck, size: 16, color: AppColors.forestGreen),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'A equipa municipal marcou esta denúncia como limpa/resolvida.',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12.5,
+                    color: isDark ? Colors.white70 : AppColors.grey800,
+                  ),
                 ),
               ),
             ],
