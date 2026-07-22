@@ -298,6 +298,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     await _simulateTypewriter(option.responseText);
     if (mounted) {
       setState(() {
+        _isTyping = false; // Garante que os três pontos (...) desaparecem e liberta a interface!
         if (option.id == 'voltar_menu' || option.followUpOptions == null || option.followUpOptions!.isEmpty) {
           _currentOfflineOptions = XeniOfflineInteractive.mainMenuOptions;
         } else {
@@ -451,72 +452,114 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 ),
               ),
 
-              // Interactive Options Chips (Online initial suggestions OR Offline interactive options)
-              if (!_isTyping && (!_isOnline || _messages.length == 1))
+              // Online Suggestions Chips (Horizontal)
+              if (_isOnline && !_isTyping && _messages.length == 1)
                 Container(
                   height: 48,
                   margin: const EdgeInsets.only(bottom: AppSpacing.xs),
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                    itemCount: _isOnline ? _suggestions.length : _currentOfflineOptions.length,
+                    itemCount: _suggestions.length,
                     itemBuilder: (context, index) {
-                      if (_isOnline) {
-                        final sugg = _suggestions[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(right: AppSpacing.xs),
-                          child: ActionChip(
-                            label: Text(
-                              sugg,
-                              style: TextStyles.captionSmall.copyWith(
-                                color: AppColors.forestGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      final sugg = _suggestions[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(right: AppSpacing.xs),
+                        child: ActionChip(
+                          label: Text(
+                            sugg,
+                            style: TextStyles.captionSmall.copyWith(
+                              color: AppColors.forestGreen,
+                              fontWeight: FontWeight.w600,
                             ),
-                            backgroundColor: AppColors.mintGreen.withValues(alpha: 0.35),
-                            side: BorderSide(
-                              color: AppColors.sageGreen.withValues(alpha: 0.5),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            onPressed: () => _sendMessage(sugg),
                           ),
-                        );
-                      } else {
-                        final option = _currentOfflineOptions[index];
-                        final isReturn = option.id == 'voltar_menu';
-                        return Padding(
-                          padding: const EdgeInsets.only(right: AppSpacing.xs),
-                          child: ActionChip(
-                            avatar: Icon(
-                              isReturn ? LucideIcons.arrowLeft : LucideIcons.mousePointerClick,
-                              size: 14,
-                              color: isReturn ? AppColors.error : AppColors.forestGreen,
-                            ),
-                            label: Text(
-                              option.label,
-                              style: TextStyles.captionSmall.copyWith(
-                                color: isReturn ? AppColors.error : AppColors.forestGreen,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            backgroundColor: isReturn
-                                ? AppColors.error.withValues(alpha: 0.1)
-                                : AppColors.mintGreen.withValues(alpha: 0.35),
-                            side: BorderSide(
-                              color: isReturn
-                                  ? AppColors.error.withValues(alpha: 0.4)
-                                  : AppColors.sageGreen.withValues(alpha: 0.6),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            onPressed: () => _onOfflineOptionTap(option),
+                          backgroundColor: AppColors.mintGreen.withValues(alpha: 0.35),
+                          side: BorderSide(
+                            color: AppColors.sageGreen.withValues(alpha: 0.5),
                           ),
-                        );
-                      }
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          onPressed: () => _sendMessage(sugg),
+                        ),
+                      );
                     },
+                  ),
+                ),
+
+              // Offline Interactive Options Menu (Vertical Select - Linha a Linha)
+              if (!_isOnline && !_isTyping)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+                  margin: const EdgeInsets.only(bottom: AppSpacing.xs),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6, left: 4),
+                        child: Text(
+                          'Selecione um assunto:',
+                          style: TextStyles.captionSmall.copyWith(
+                            color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 210),
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _currentOfflineOptions.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          itemBuilder: (context, index) {
+                            final option = _currentOfflineOptions[index];
+                            final isReturn = option.id == 'voltar_menu';
+                            return InkWell(
+                              onTap: () => _onOfflineOptionTap(option),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isReturn
+                                      ? AppColors.error.withValues(alpha: isDark ? 0.2 : 0.08)
+                                      : (isDark ? AppColors.grey800 : AppColors.mintGreen.withValues(alpha: 0.35)),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isReturn
+                                        ? AppColors.error.withValues(alpha: 0.4)
+                                        : AppColors.sageGreen.withValues(alpha: 0.6),
+                                    width: 1.0,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      isReturn ? LucideIcons.arrowLeft : LucideIcons.chevronRight,
+                                      size: 16,
+                                      color: isReturn ? AppColors.error : AppColors.forestGreen,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        option.label,
+                                        style: TextStyles.captionLarge.copyWith(
+                                          color: isReturn
+                                              ? AppColors.error
+                                              : (isDark ? AppColors.white : AppColors.forestGreen),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
