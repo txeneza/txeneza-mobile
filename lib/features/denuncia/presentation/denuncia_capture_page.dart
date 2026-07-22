@@ -430,7 +430,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
               style: TextStyle(
                 fontFamily: 'Geist',
                 fontSize: 12.5,
-                color: isDark ? Colors.white90 : AppColors.grey900,
+                color: isDark ? Colors.white : AppColors.grey900,
               ),
             ),
           ],
