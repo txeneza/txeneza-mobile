@@ -5,7 +5,7 @@ import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/colors/light_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
-import '../../../common/data/supabase_error_translator.dart';
+import '../../../../core/errors/supabase_error_translator.dart';
 import '../../data/datasources/auth_remote_datasource.dart';
 import '../widgets/auth_header_widget.dart';
 import '../widgets/custom_text_field.dart';
