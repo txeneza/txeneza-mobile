@@ -99,7 +99,7 @@ class _MyReportsViewState extends State<MyReportsView> {
           Container(
             height: 46,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.black : AppColors.grey100,
+              color: isDark ? AppColors.grey900 : AppColors.grey100,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isDark ? AppColors.grey800 : AppColors.grey200,

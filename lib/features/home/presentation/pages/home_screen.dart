@@ -348,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: isDark ? AppColors.black : const Color(0xFFF4F2EB),
+        backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
         body: Stack(
           children: [
             // Tab Pages Container

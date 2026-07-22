@@ -402,7 +402,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.black : const Color(0xFFF4F2EB),
+      backgroundColor: isDark ? AppColors.grey900 : const Color(0xFFF4F2EB),
       body: Stack(
         children: [
           // Wallpaper SVG da Txeneza
@@ -664,7 +664,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
             child: Container(
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, 48, AppSpacing.md, AppSpacing.sm),
               decoration: BoxDecoration(
-                color: (isDark ? AppColors.black : const Color(0xFFF4F2EB)).withValues(alpha: 0.95),
+                color: (isDark ? AppColors.grey900 : const Color(0xFFF4F2EB)).withValues(alpha: 0.95),
                     border: Border(
                       bottom: BorderSide(
                         color: isDark ? AppColors.grey800.withValues(alpha: 0.5) : AppColors.grey300.withValues(alpha: 0.5),
@@ -712,7 +712,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                                 color: _isOnline ? AppColors.success : AppColors.warning,
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isDark ? AppColors.black : Colors.white,
+                                  color: isDark ? AppColors.grey900 : Colors.white,
                                   width: 2.0,
                                 ),
                               ),
