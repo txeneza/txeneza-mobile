@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'categoria_datasource.dart';
+import '../domain/categoria.dart';
 import '../../map/domain/occurrence_model.dart';
 import '../domain/denuncia_draft.dart';
 
@@ -20,6 +22,26 @@ class OcorrenciaDataSource {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       throw Exception('Sessão expirada. Inicie sessão novamente.');
+    }
+
+    // Se a denúncia foi guardada offline com um ID temporário, resolve para o UUID real do Supabase.
+    String realCategoryId = draft.idCategoria;
+    if (realCategoryId.startsWith('temp_')) {
+      try {
+        final cats = await CategoriaDataSource().fetchAll(forceRefresh: true);
+        final tempCat = Categoria.defaultOfflineCategorias.firstWhere(
+          (c) => c.id == draft.idCategoria,
+          orElse: () => Categoria.defaultOfflineCategorias.last,
+        );
+        final matched = cats.firstWhere(
+          (c) => c.nome.toLowerCase() == tempCat.nome.toLowerCase(),
+          orElse: () => cats.firstWhere(
+            (c) => c.nome.toLowerCase().contains('outro'),
+            orElse: () => cats.first,
+          ),
+        );
+        realCategoryId = matched.id;
+      } catch (_) {}
     }
 
     final Uint8List bytes = await File(draft.fotoPathLocal).readAsBytes();
@@ -41,7 +63,7 @@ class OcorrenciaDataSource {
     await _client.from('ocorrencia').upsert({
       'id_ocorrencia': draft.id,
       'id_utilizador': userId,
-      'id_categoria': draft.idCategoria,
+      'id_categoria': realCategoryId,
       'descricao': draft.descricao,
       'latitude': draft.latitude,
       'longitude': draft.longitude,

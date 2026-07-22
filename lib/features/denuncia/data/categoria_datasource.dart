@@ -38,7 +38,9 @@ class CategoriaDataSource {
         _memoryCache = cached;
         return cached;
       }
-      rethrow;
+      // Fallback para as categorias padrão se estiver offline sem cache prévia.
+      _memoryCache = Categoria.defaultOfflineCategorias;
+      return Categoria.defaultOfflineCategorias;
     }
   }
 

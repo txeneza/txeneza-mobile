@@ -61,6 +61,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
 
   // Estado da Classificação por IA (RF-010, RF-011, RN-005)
   bool _isAnalyzingAI = false;
+  bool _showManualInputs = false;
   DenunciaAIClassificationResult? _aiResult;
   Categoria? _aiOriginalCategoria;
   Gravidade? _aiOriginalGravidade;
@@ -94,9 +95,21 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     try {
       final cats = await _categoriaDataSource.fetchAll();
       if (!mounted) return;
-      setState(() => _categorias = cats);
+      final effectiveCats = cats.isNotEmpty ? cats : Categoria.defaultOfflineCategorias;
+      setState(() {
+        _categorias = effectiveCats;
+        if (_selectedCategoria == null && _categorias.isNotEmpty) {
+          _selectedCategoria = _categorias.first;
+        }
+      });
     } catch (_) {
-      // Sem rede e sem cache: o utilizador verá o aviso no dropdown.
+      if (!mounted) return;
+      setState(() {
+        _categorias = Categoria.defaultOfflineCategorias;
+        if (_selectedCategoria == null && _categorias.isNotEmpty) {
+          _selectedCategoria = _categorias.first;
+        }
+      });
     }
   }
 
@@ -117,6 +130,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
         _aiResult = aiResult;
         _gravidade = aiResult.gravidadeSugerida;
         _aiOriginalGravidade = aiResult.gravidadeSugerida;
+        _descricaoController.text = aiResult.explicacao;
 
         // Tentar mapear categoria sugerida pela IA para as categorias existentes
         if (_categorias.isNotEmpty) {
@@ -328,18 +342,142 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
                   const SizedBox(height: 20),
                   _buildLocationSection(isDark),
                   const SizedBox(height: 20),
-                  _buildCategoriaSection(isDark, theme),
-                  const SizedBox(height: 20),
-                  _buildGravidadeSection(isDark),
-                  const SizedBox(height: 20),
-                  _buildDescricaoSection(isDark),
-                  const SizedBox(height: 28),
+                  if (!widget.isOnline || _aiResult == null || _showManualInputs) ...[
+                    _buildCategoriaSection(isDark, theme),
+                    const SizedBox(height: 20),
+                    _buildGravidadeSection(isDark),
+                    const SizedBox(height: 20),
+                    _buildDescricaoSection(isDark),
+                    const SizedBox(height: 28),
+                  ] else ...[
+                    _buildAutoFilledSummaryCard(isDark),
+                    const SizedBox(height: 28),
+                  ],
                   _buildSubmitButton(isDark),
                 ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildAutoFilledSummaryCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? DarkColors.surface : AppColors.forestGreen.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.forestGreen.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(LucideIcons.checkCircle2, color: AppColors.forestGreen, size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Preenchido Automaticamente pela IA',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.forestGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _summaryTile(
+                  'Categoria',
+                  _selectedCategoria?.nome ?? 'Outro',
+                  LucideIcons.trash2,
+                  isDark,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _summaryTile(
+                  'Gravidade',
+                  _gravidade.label,
+                  LucideIcons.alertTriangle,
+                  isDark,
+                ),
+              ),
+            ],
+          ),
+          if (_descricaoController.text.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Descrição Gerada:',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 11.5,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white70 : AppColors.grey700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _descricaoController.text,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12.5,
+                color: isDark ? Colors.white90 : AppColors.grey900,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryTile(String title, String val, IconData icon, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.grey800 : AppColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? AppColors.grey700 : AppColors.grey200,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.forestGreen),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 10.5,
+                    color: AppColors.grey600,
+                  ),
+                ),
+                Text(
+                  val,
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.grey900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -396,7 +534,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Modo Offline: Análise de IA indisponível. Selecione a categoria e gravidade manualmente abaixo.',
+                'Modo Offline: Análise de IA indisponível. As categorias padrão locais foram carregadas para o formulário abaixo.',
                 style: TextStyle(
                   fontFamily: 'Geist',
                   fontSize: 12.5,
@@ -478,51 +616,61 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
               color: isDark ? Colors.white70 : AppColors.grey800,
             ),
           ),
-          const SizedBox(height: 8),
-          // Badge da Regra de Negócio RN-005 (Correção Manual) - RF-011
-          if (_isManualCorrectionApplied) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.info.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(LucideIcons.pencil, size: 14, color: AppColors.info),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: const TextStyle(fontFamily: 'Geist', fontSize: 11.5, color: AppColors.info),
-                        children: [
-                          const TextSpan(
-                            text: 'Correção Manual Aplicada (RN-005)\n',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(
-                            text: 'Sugerido pela IA: ${_aiOriginalCategoria?.nome ?? "Outros"} (${_aiOriginalGravidade?.label ?? "Média"})',
-                            style: const TextStyle(fontSize: 10.5),
-                          ),
-                        ],
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (_isManualCorrectionApplied) ...[
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.info.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Correção manual ativa (RN-005)',
+                      style: TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.info,
                       ),
                     ),
                   ),
-                ],
+                ),
+              ] else ...[
+                const Expanded(
+                  child: Text(
+                    'Dados preenchidos pela IA.',
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                      color: AppColors.grey600,
+                    ),
+                  ),
+                ),
+              ],
+              TextButton.icon(
+                onPressed: () => setState(() => _showManualInputs = !_showManualInputs),
+                icon: Icon(
+                  _showManualInputs ? LucideIcons.chevronUp : LucideIcons.slidersHorizontal,
+                  size: 14,
+                  color: AppColors.forestGreen,
+                ),
+                label: Text(
+                  _showManualInputs ? 'Ocultar Ajustes' : 'Ajustar / Editar',
+                  style: const TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.forestGreen,
+                  ),
+                ),
               ),
-            ),
-          ] else ...[
-            const Text(
-              'Sugestões aplicadas abaixo. Pode ajustar se necessário (RF-011).',
-              style: TextStyle(
-                fontFamily: 'Geist',
-                fontSize: 11,
-                fontStyle: FontStyle.italic,
-                color: AppColors.grey600,
-              ),
-            ),
-          ],
+            ],
+          ),
         ],
       ),
     );
