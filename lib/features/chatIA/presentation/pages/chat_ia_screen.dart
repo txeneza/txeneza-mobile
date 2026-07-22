@@ -594,7 +594,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: _isOnline ? AppColors.forestGreen : AppColors.grey400,
+                          color: _isOnline ? AppColors.forestGreen : AppColors.grey600,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
