@@ -9,6 +9,7 @@ import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
 import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
+import '../../data/user_context_service.dart';
 import '../../data/xeni_offline_interactive.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/image_analysis_modal.dart';
@@ -26,6 +27,8 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   final ScrollController _scrollController = ScrollController();
   final GeminiService _geminiService = GeminiService();
   final ConversacaoDataSource _conversacao = ConversacaoDataSource();
+  final UserContextService _userContextService = UserContextService();
+  String? _userContext;
 
   // Connectivity
   bool _isOnline = true;
@@ -54,7 +57,18 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     super.initState();
     _checkInitialConnectivity();
     _loadHistory();
+    _loadUserContext();
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  /// Busca uma vez, ao abrir o chat, um resumo do utilizador (nome +
+  /// actividade) para dar contexto à Xeni. Falha em silêncio — sem
+  /// contexto, a Xeni simplesmente continua a conversar normalmente, só
+  /// sem saber o nome/actividade do utilizador.
+  Future<void> _loadUserContext() async {
+    final context = await _userContextService.buildContextSummary();
+    if (!mounted) return;
+    setState(() => _userContext = context);
   }
 
   /// Carrega o histórico guardado no Supabase e acrescenta-o após a saudação.
@@ -249,7 +263,11 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 ))
             .toList();
 
-        final response = await _geminiService.sendMessage(text, history: history);
+        final response = await _geminiService.sendMessage(
+          text,
+          history: history,
+          userContext: _userContext,
+        );
         if (mounted) {
           setState(() {
             _isTyping = false;

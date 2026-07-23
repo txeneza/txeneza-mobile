@@ -21,9 +21,15 @@ class GeminiService {
 
   /// Mensagem de texto para a Xeni, com o system prompt e o histórico recente
   /// para manter o contexto da conversa.
+  ///
+  /// [userContext], quando fornecido (ver UserContextService), é anexado ao
+  /// system prompt da Xeni para ela saber o nome do utilizador e um resumo
+  /// da sua actividade — é só contexto de leitura, nunca dá à Xeni acesso a
+  /// executar ações no sistema.
   Future<String> sendMessage(
     String message, {
     List<ChatTurn> history = const [],
+    String? userContext,
   }) async {
     final contents = <Map<String, dynamic>>[
       for (final turn in history)
@@ -41,7 +47,11 @@ class GeminiService {
       },
     ];
 
-    return _generate(contents);
+    final systemInstruction = userContext == null || userContext.isEmpty
+        ? kXeniSystemPrompt
+        : '$kXeniSystemPrompt\n\n$userContext';
+
+    return _generate(contents, systemInstruction: systemInstruction);
   }
 
   /// Classificação multimodal de uma imagem de resíduo (texto + imagem).
