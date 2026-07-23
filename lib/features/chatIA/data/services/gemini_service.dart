@@ -75,16 +75,21 @@ class GeminiService {
 
   /// Classificação estruturada de uma foto de ocorrência (RF-010).
   /// Retorna um objeto `DenunciaAIClassificationResult` com a categoria, gravidade e explicação.
+  /// Devolve `null` se a foto não puder ser classificada com confiança
+  /// (resposta malformada, sem os campos obrigatórios, etc.) — o chamador
+  /// deve nesse caso pedir ao utilizador para escolher a categoria
+  /// manualmente, nunca assumir um resultado inventado.
   Future<DenunciaAIClassificationResult?> classifyReportImage(
     Uint8List imageBytes, {
     String mimeType = 'image/jpeg',
   }) async {
-    final promptText = '''
+    const promptText = '''
 Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num formato JSON válido sem formatação markdown ou código adicional:
 {
-  "categoria": "Nome da categoria provável ex: Plástico, Vidro, Entulho, Matéria Orgânica, Lixo Eletrónico, Papel/Cartão, Metais ou Outros",
+  "residuo_detectado": true ou false,
+  "categoria": "Nome da categoria provável ex: Plástico, Vidro, Entulho, Matéria Orgânica, Lixo Eletrónico, Papel/Cartão, Metais ou Outro",
   "gravidade": "baixa ou media ou alta ou critica",
-  "explicacao": "Breve justificativa em 1-2 frases explicando o que foi observado na imagem.",
+  "explicacao": "Descrição objectiva em 1-2 frases do que foi observado na imagem.",
   "confianca": 85
 }
 ''';
@@ -105,7 +110,10 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
     ];
 
     try {
-      final rawResponse = await _generate(contents);
+      final rawResponse = await _generate(
+        contents,
+        systemInstruction: kImageClassificationSystemPrompt,
+      );
       // Tentar extrair o JSON mesmo se a IA envolver em blocos ```json ... ```
       String cleanedJson = rawResponse.replaceAll(RegExp(r'^```json\s*|\s*```$'), '').trim();
       final startIndex = cleanedJson.indexOf('{');
@@ -114,6 +122,17 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
         cleanedJson = cleanedJson.substring(startIndex, endIndex + 1);
       }
       final parsedMap = jsonDecode(cleanedJson) as Map<String, dynamic>;
+
+      // Se a resposta não tiver sequer o campo "categoria", não é uma
+      // classificação válida — não fabricamos um resultado por omissão
+      // (isso já causou classificações "falsas" no passado: qualquer
+      // resposta malformada virava silenciosamente "Outros" a 85% de
+      // confiança, como se fosse uma classificação real).
+      if (parsedMap['categoria'] == null) {
+        debugPrint('Resposta da IA sem campo "categoria" — a descartar.');
+        return null;
+      }
+
       return DenunciaAIClassificationResult.fromJson(parsedMap);
     } catch (e) {
       debugPrint('Falha ao processar resposta JSON da IA: $e');
@@ -122,7 +141,13 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
   }
 
   /// Núcleo da chamada à API, com system prompt, fallback de modelos e retry.
-  Future<String> _generate(List<Map<String, dynamic>> contents) async {
+  /// [systemInstruction] por omissão é o prompt conversacional da Xeni; a
+  /// classificação estruturada (classifyReportImage) usa um prompt próprio,
+  /// mais estrito e sem personalidade (ver kImageClassificationSystemPrompt).
+  Future<String> _generate(
+    List<Map<String, dynamic>> contents, {
+    String systemInstruction = kXeniSystemPrompt,
+  }) async {
     final apiKey = AppEnv.geminiApiKey;
     if (apiKey.isEmpty) {
       return 'A chave da API do Gemini não está configurada.';
@@ -131,7 +156,7 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
     final body = jsonEncode({
       'system_instruction': {
         'parts': [
-          {'text': kXeniSystemPrompt}
+          {'text': systemInstruction}
         ]
       },
       'contents': contents,

@@ -14,11 +14,17 @@ class DenunciaAIClassificationResult {
   /// Grau de confiança da classificação (de 0.0 a 1.0, ex: 0.85 para 85%).
   final double confianca;
 
+  /// Se a IA considera que a fotografia mostra mesmo resíduos/lixo. Quando
+  /// `false`, a categoria/gravidade sugeridas não devem ser aplicadas
+  /// automaticamente — o utilizador deve confirmar/escolher manualmente.
+  final bool residuoDetectado;
+
   const DenunciaAIClassificationResult({
     required this.categoriaSugerida,
     required this.gravidadeSugerida,
     required this.explicacao,
     required this.confianca,
+    this.residuoDetectado = true,
   });
 
   factory DenunciaAIClassificationResult.fromJson(Map<String, dynamic> json) {
@@ -34,11 +40,16 @@ class DenunciaAIClassificationResult {
       }
     }
 
+    // Categoria: chamador (classifyReportImage) já garante que este campo
+    // existe antes de chegar aqui — não fabricamos "Outros" por omissão.
+    final categoria = json['categoria'] as String;
+
     return DenunciaAIClassificationResult(
-      categoriaSugerida: json['categoria'] as String? ?? 'Outros',
+      categoriaSugerida: categoria,
       gravidadeSugerida: Gravidade.fromDb(gravStr),
       explicacao: json['explicacao'] as String? ?? 'Análise fotográfica efetuada com sucesso.',
       confianca: rawConfianca.clamp(0.0, 1.0),
+      residuoDetectado: json['residuo_detectado'] as bool? ?? true,
     );
   }
 }

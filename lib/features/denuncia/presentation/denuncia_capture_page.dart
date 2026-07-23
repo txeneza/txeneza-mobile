@@ -132,15 +132,44 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
         _aiOriginalGravidade = aiResult.gravidadeSugerida;
         _descricaoController.text = aiResult.explicacao;
 
-        // Tentar mapear categoria sugerida pela IA para as categorias existentes
+        // Tentar mapear a categoria sugerida pela IA para uma categoria
+        // existente. IMPORTANTE: se não houver correspondência clara, NUNCA
+        // aplicamos silenciosamente "_categorias.first" — isso já causou
+        // classificações "falsas" (uma categoria arbitrária, sem relação
+        // nenhuma com a foto, era escolhida sempre que o nome da IA não
+        // batia certo com o da BD). Em vez disso: caímos para "Outro" (uma
+        // categoria neutra que existe mesmo) e abrimos os ajustes manuais
+        // para o utilizador confirmar.
+        Categoria? matched;
         if (_categorias.isNotEmpty) {
-          final matched = _categorias.firstWhere(
-            (c) => c.nome.toLowerCase().contains(aiResult.categoriaSugerida.toLowerCase()) ||
-                aiResult.categoriaSugerida.toLowerCase().contains(c.nome.toLowerCase()),
+          for (final c in _categorias) {
+            final nomeIA = aiResult.categoriaSugerida.toLowerCase();
+            final nomeCat = c.nome.toLowerCase();
+            if (nomeCat.contains(nomeIA) || nomeIA.contains(nomeCat)) {
+              matched = c;
+              break;
+            }
+          }
+        }
+
+        final semCorrespondencia = matched == null;
+        if (semCorrespondencia && _categorias.isNotEmpty) {
+          matched = _categorias.firstWhere(
+            (c) => c.nome.toLowerCase().contains('outro'),
             orElse: () => _categorias.first,
           );
+        }
+
+        if (matched != null) {
           _selectedCategoria = matched;
           _aiOriginalCategoria = matched;
+        }
+
+        // Foto sem resíduos claramente visíveis, ou sem categoria
+        // correspondente: não confiamos na sugestão automática — abre os
+        // ajustes manuais desde já, para o utilizador rever/corrigir.
+        if (!aiResult.residuoDetectado || semCorrespondencia) {
+          _showManualInputs = true;
         }
       }
     } catch (e) {
@@ -616,6 +645,35 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
               color: isDark ? Colors.white70 : AppColors.grey800,
             ),
           ),
+          if (!_aiResult!.residuoDetectado) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD32F2F).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(LucideIcons.alertTriangle, size: 15, color: Color(0xFFD32F2F)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Não conseguimos identificar resíduos com clareza nesta fotografia. Reveja a categoria e a gravidade manualmente antes de submeter.',
+                      style: TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFD32F2F),
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
