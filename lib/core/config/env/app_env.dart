@@ -11,6 +11,20 @@ class AppEnv {
   static bool get debugMode =>
       dotenv.get('DEBUG_MODE', fallback: 'true').toLowerCase() == 'true';
 
+  // ⚠️ SEGURANÇA: esta chave fica embutida no .env, que é empacotado como
+  // asset dentro do APK/IPA compilado — qualquer pessoa que descompacte a
+  // app (trivial, ex: abrir o .apk como zip) consegue lê-la em texto
+  // simples. Diferente do token do Mapbox ou da chave anónima do Supabase,
+  // que são desenhados para serem públicos (protegidos por restrição de
+  // domínio/bundle ou por RLS), a API key do Gemini está ligada à
+  // facturação/quota da conta Google — se ficar exposta sem restrição,
+  // outra pessoa pode usá-la à conta da Txeneza.
+  //
+  // Mitigação obrigatória (ver README.md secção "Segurança"): restringir
+  // esta chave no Google Cloud Console (Credentials -> a chave ->
+  // Application restrictions -> Android apps, com o package name
+  // com.example.txeneza_app e o SHA-1 de assinatura da app). Isto não
+  // pode ser feito por código — é uma configuração na conta Google Cloud.
   static String get geminiApiKey =>
       dotenv.get('GEMINI_API_KEY', fallback: '');
 
