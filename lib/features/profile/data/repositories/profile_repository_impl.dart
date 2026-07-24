@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/errors/supabase_error_translator.dart';
@@ -8,6 +10,9 @@ import '../models/profile_user_model.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   SupabaseClient get _client => Supabase.instance.client;
+
+  static const String _profileKeyPrefix = 'profile_cache_';
+  static const String _statsKeyPrefix = 'profile_stats_cache_';
 
   String get _uid {
     final user = _client.auth.currentUser;
@@ -20,14 +25,23 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<ProfileUserModel> getProfile() async {
     final uid = _uid;
+    final prefs = await SharedPreferences.getInstance();
     try {
       final row = await _client
           .from('utilizador')
           .select()
           .eq('id_utilizador', uid)
           .single();
-      return ProfileUserModel.fromJson(row);
+      final profile = ProfileUserModel.fromJson(row);
+      await prefs.setString('$_profileKeyPrefix$uid', jsonEncode(profile.toJson()));
+      return profile;
     } catch (e) {
+      final cachedJson = prefs.getString('$_profileKeyPrefix$uid');
+      if (cachedJson != null) {
+        try {
+          return ProfileUserModel.fromJson(jsonDecode(cachedJson) as Map<String, dynamic>);
+        } catch (_) {}
+      }
       throw Exception(SupabaseErrorTranslator.translate(e));
     }
   }
@@ -40,6 +54,8 @@ class ProfileRepositoryImpl implements ProfileRepository {
           .from('utilizador')
           .update(profile.toUpdateJson())
           .eq('id_utilizador', uid);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_profileKeyPrefix$uid', jsonEncode(profile.toJson()));
     } catch (e) {
       throw Exception(SupabaseErrorTranslator.translate(e));
     }
@@ -48,6 +64,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
   @override
   Future<ProfileStats> getStats() async {
     final uid = _uid;
+    final prefs = await SharedPreferences.getInstance();
     try {
       final rows = await _client
           .from('ocorrencia')
@@ -58,12 +75,20 @@ class ProfileRepositoryImpl implements ProfileRepository {
       final submitted = list.length;
       final resolved =
           list.where((r) => r['estado'] == 'resolvida').length;
-      return ProfileStats(
+      final stats = ProfileStats(
         submitted: submitted,
         resolved: resolved,
         pending: submitted - resolved,
       );
+      await prefs.setString('$_statsKeyPrefix$uid', jsonEncode(stats.toJson()));
+      return stats;
     } catch (_) {
+      final cachedJson = prefs.getString('$_statsKeyPrefix$uid');
+      if (cachedJson != null) {
+        try {
+          return ProfileStats.fromJson(jsonDecode(cachedJson) as Map<String, dynamic>);
+        } catch (_) {}
+      }
       // Estatística não é crítica: em falha devolve zeros.
       return ProfileStats.empty;
     }

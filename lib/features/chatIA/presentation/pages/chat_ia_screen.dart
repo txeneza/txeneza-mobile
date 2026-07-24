@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../../../core/network/network_info.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
@@ -32,7 +32,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
 
   // Connectivity
   bool _isOnline = true;
-  late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  late final StreamSubscription<bool> _connectivitySubscription;
 
   // Chat State
   bool _isTyping = false;
@@ -58,7 +58,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     _checkInitialConnectivity();
     _loadHistory();
     _loadUserContext();
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen(_updateConnectionStatus);
+    _connectivitySubscription = NetworkInfo().onConnectivityChanged.listen(_updateConnectionStatus);
   }
 
   /// Busca uma vez, ao abrir o chat, um resumo do utilizador (nome +
@@ -209,12 +209,11 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   }
 
   Future<void> _checkInitialConnectivity() async {
-    final results = await Connectivity().checkConnectivity();
-    _updateConnectionStatus(results);
+    final hasConnection = await NetworkInfo().isConnected;
+    _updateConnectionStatus(hasConnection);
   }
 
-  void _updateConnectionStatus(List<ConnectivityResult> results) {
-    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+  void _updateConnectionStatus(bool hasConnection) {
     if (mounted && _isOnline != hasConnection) {
       setState(() {
         _isOnline = hasConnection;

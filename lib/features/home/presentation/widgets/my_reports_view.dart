@@ -316,6 +316,8 @@ class _ReportCard extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: report.photoUrl!,
       fit: BoxFit.cover,
+      memCacheWidth: 200,
+      memCacheHeight: 200,
       placeholder: (context, url) => Container(
         color: isDark ? AppColors.grey800 : AppColors.grey100,
         child: const Center(

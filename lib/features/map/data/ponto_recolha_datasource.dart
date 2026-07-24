@@ -38,7 +38,7 @@ class PontoRecolhaDataSource {
         final prefs = await SharedPreferences.getInstance();
         final raw = prefs.getString(_cacheKey);
         if (raw != null) {
-          final decoded = jsonDecode(raw) as List;
+          final decoded = await compute(jsonDecode, raw) as List;
           return decoded
               .map((row) => PontoRecolha.fromJson(row as Map<String, dynamic>))
               .toList();

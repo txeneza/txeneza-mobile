@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../../../core/network/network_info.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isManualOverride = false;
   bool _isFirstConnectivityEvent = true;
   int _pendingCount = 0;
-  late final StreamSubscription<List<ConnectivityResult>> _connectivitySubscription;
+  late final StreamSubscription<bool> _connectivitySubscription;
 
   // Map state
   mapbox.MapboxMap? _mapboxMap;
@@ -79,9 +79,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadUnreadCount();
     _subscribeToNotificacoes();
     FCMService.syncToken();
-    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    _connectivitySubscription = NetworkInfo().onConnectivityChanged.listen((bool isOnline) {
       if (!_isManualOverride) {
-        _updateConnectionStatus(results);
+        _updateConnectionStatus(isOnline);
       }
     });
   }
@@ -184,14 +184,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _checkInitialConnectivity() async {
-    final results = await Connectivity().checkConnectivity();
+    final hasConnection = await NetworkInfo().isConnected;
     if (!_isManualOverride) {
-      _updateConnectionStatus(results);
+      _updateConnectionStatus(hasConnection);
     }
   }
 
-  void _updateConnectionStatus(List<ConnectivityResult> results) {
-    final hasConnection = results.any((r) => r != ConnectivityResult.none);
+  void _updateConnectionStatus(bool hasConnection) {
     if (_isOnline != hasConnection || _isFirstConnectivityEvent) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -387,7 +386,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       const ChatIAScreen(),
 
                       // Tab 3: Profile View
-                      const ProfilePage(),
+                      ProfilePage(isOnline: _isOnline),
                     ],
                   ),
                 ),

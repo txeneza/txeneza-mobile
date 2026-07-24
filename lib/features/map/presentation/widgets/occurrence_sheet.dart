@@ -476,6 +476,8 @@ class _OccurrenceThumbnail extends StatelessWidget {
                     width: 42,
                     height: 42,
                     fit: BoxFit.cover,
+                    memCacheWidth: 100,
+                    memCacheHeight: 100,
                     placeholder: (context, url) => Container(
                       width: 42,
                       height: 42,

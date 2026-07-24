@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
+import 'core/network/network_info.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/theme_controller/theme_provider.dart';
@@ -62,8 +62,7 @@ class _AppState extends State<App> {
 
       // Só validamos a necessidade de completar perfil online. Offline avança direto
       // para a home para evitar travar o ecrã de splash em timeouts infinitos.
-      final connectivityResults = await Connectivity().checkConnectivity();
-      final hasNetwork = connectivityResults.any((r) => r != ConnectivityResult.none);
+      final hasNetwork = await NetworkInfo().isConnected;
 
       if (hasNetwork) {
         try {

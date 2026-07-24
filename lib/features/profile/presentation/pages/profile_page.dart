@@ -17,7 +17,8 @@ import '../widgets/profile_support_section.dart';
 import '../widgets/profile_settings_section.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final bool isOnline;
+  const ProfilePage({super.key, this.isOnline = true});
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -211,6 +212,33 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (!widget.isOnline)
+                  Container(
+                    color: isDark 
+                        ? const Color(0xFF3E2723)
+                        : const Color(0xFFFFF3E0),
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          LucideIcons.wifiOff, 
+                          size: 14, 
+                          color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Modo offline · A visualizar dados locais',
+                          style: TextStyle(
+                            fontFamily: 'Geist',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ProfileHeader(
                   fullName: profile.fullName,
                   isVerified: profile.isVerified,
@@ -219,6 +247,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ProfileInfoCard(
                   profile: profile,
                   isUpdating: isUpdating,
+                  isOnline: widget.isOnline,
                   onSave: (fullName, phoneNumber, neighborhood) async {
                     final success = await _controller.updateProfile(
                       fullName: fullName,

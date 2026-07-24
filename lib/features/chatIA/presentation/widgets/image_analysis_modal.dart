@@ -1,4 +1,4 @@
-import 'package:connectivity_plus/connectivity_plus.dart';
+import '../../../../core/network/network_info.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -31,8 +31,7 @@ class _ImageAnalysisModalState extends State<ImageAnalysisModal> {
 
   Future<void> _pickAndAnalyze(ImageSource source) async {
     // A classificação depende do Gemini, que precisa de internet.
-    final results = await Connectivity().checkConnectivity();
-    final isOnline = results.any((r) => r != ConnectivityResult.none);
+    final isOnline = await NetworkInfo().isConnected;
     if (!isOnline) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

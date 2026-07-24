@@ -52,4 +52,17 @@ class ProfileUserModel extends UserEntity {
       'bairro': neighborhood,
     };
   }
+
+  /// Converte o utilizador de volta a JSON para persistência em cache local.
+  Map<String, dynamic> toJson() {
+    return {
+      'id_utilizador': id,
+      'nome': fullName,
+      'email': email,
+      'telefone': phoneNumber,
+      'bairro': neighborhood,
+      'token': token,
+      'estado': isVerified ? 'activo' : 'inactivo',
+    };
+  }
 }

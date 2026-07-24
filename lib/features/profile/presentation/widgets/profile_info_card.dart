@@ -10,12 +10,14 @@ import '../../data/models/profile_user_model.dart';
 class ProfileInfoCard extends StatefulWidget {
   final ProfileUserModel profile;
   final bool isUpdating;
+  final bool isOnline;
   final Function(String fullName, String phoneNumber, String neighborhood) onSave;
 
   const ProfileInfoCard({
     super.key,
     required this.profile,
     required this.isUpdating,
+    required this.isOnline,
     required this.onSave,
   });
 
@@ -126,6 +128,20 @@ class _ProfileInfoCardState extends State<ProfileInfoCard> {
                 color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
               ),
               onPressed: () {
+                if (!widget.isOnline) {
+                  ScaffoldMessenger.of(context).clearSnackBars();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Sem ligação à internet. Ligue-se à rede para editar o seu perfil.',
+                        style: TextStyle(fontFamily: 'Geist'),
+                      ),
+                      backgroundColor: Color(0xFFE65100),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
                 setState(() {
                   _isEditing = true;
                 });

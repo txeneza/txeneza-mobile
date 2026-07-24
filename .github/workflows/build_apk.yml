@@ -34,11 +34,45 @@ jobs:
       - name: Instalar dependências
         run: flutter pub get
 
-      - name: Compilar APK (Release)
-        run: flutter build apk --release
+      # ── Build otimizado para performance ──────────────────────────
+      #  --split-per-abi  → APK dedicado por CPU (arm64, arm, x86_64)
+      #                     Resultado: APK ~40-60% menor que o universal
+      #  --obfuscate      → Ofusca nomes de classes/funções Dart
+      #  --split-debug-info → Separa símbolos de debug (necessário p/ obfuscate)
+      #  --tree-shake-icons → Remove ícones Material/Cupertino não usados
+      #  R8 + shrinkResources (no build.gradle.kts) remove código e recursos
+      #  Android não utilizados automaticamente durante este build.
+      - name: Compilar APKs (Release · Performance)
+        run: |
+          flutter build apk \
+            --release \
+            --split-per-abi \
+            --obfuscate \
+            --split-debug-info=build/debug-info \
+            --tree-shake-icons
 
-      - name: Guardar Ficheiro APK para Download
+      # Upload dos APKs gerados por arquitetura
+      - name: Guardar APK arm64-v8a (dispositivos modernos)
         uses: actions/upload-artifact@v4
         with:
-          name: txeneza-apk-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: txeneza-arm64-v8a
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+      - name: Guardar APK armeabi-v7a (dispositivos antigos)
+        uses: actions/upload-artifact@v4
+        with:
+          name: txeneza-armeabi-v7a
+          path: build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+
+      - name: Guardar APK x86_64 (emuladores)
+        uses: actions/upload-artifact@v4
+        with:
+          name: txeneza-x86_64
+          path: build/app/outputs/flutter-apk/app-x86_64-release.apk
+
+      # Símbolos de debug (para desofuscar stack traces de crashes)
+      - name: Guardar símbolos de debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: txeneza-debug-symbols
+          path: build/debug-info/

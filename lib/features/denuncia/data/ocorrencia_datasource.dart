@@ -126,7 +126,7 @@ class OcorrenciaDataSource {
         final prefs = await SharedPreferences.getInstance();
         final raw = prefs.getString(cacheKey);
         if (raw != null) {
-          final decoded = jsonDecode(raw) as List;
+          final decoded = await compute(jsonDecode, raw) as List;
           return decoded
               .map((r) => _mapToOccurrence(r as Map<String, dynamic>))
               .toList();
