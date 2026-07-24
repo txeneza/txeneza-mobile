@@ -173,7 +173,7 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
       'generationConfig': {
         // Temperatura baixa: respostas mais focadas e menos genéricas.
         'temperature': 0.4,
-        'maxOutputTokens': 800,
+        'maxOutputTokens': 1600,
       },
     });
 

@@ -33,7 +33,7 @@ class ConversacaoDataSource {
         'mensagem_utilizador': mensagem,
         'resposta_xeni': resposta,
         'modo': 'gemini',
-        'data_hora': DateTime.now().toIso8601String(),
+        'data_hora': DateTime.now().toUtc().toIso8601String(),
       });
     } catch (_) {
       // Histórico não é crítico para a conversa em curso.
@@ -56,8 +56,9 @@ class ConversacaoDataSource {
       return ConversaTurno(
         mensagemUtilizador: map['mensagem_utilizador'] as String? ?? '',
         respostaXeni: map['resposta_xeni'] as String? ?? '',
-        dataHora: DateTime.tryParse(map['data_hora'].toString()) ??
-            DateTime.now(),
+        dataHora: (DateTime.tryParse(map['data_hora'].toString()) ??
+                DateTime.now())
+            .toLocal(),
       );
     }).toList();
   }

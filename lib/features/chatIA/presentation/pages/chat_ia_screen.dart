@@ -327,15 +327,6 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     }
   }
 
-  void _addBotMessage(String text) {
-    if (!mounted) return;
-    setState(() {
-      _messages.add({'text': text, 'isUser': false, 'time': 'Agora'});
-      _isTyping = false;
-    });
-    _scrollToBottom();
-  }
-
   Future<void> _simulateTypewriter(String fullText) async {
     final Map<String, dynamic> botMessage = {
       'text': '',
@@ -530,7 +521,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                           shrinkWrap: true,
                           physics: const BouncingScrollPhysics(),
                           itemCount: _currentOfflineOptions.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          separatorBuilder: (_, _) => const SizedBox(height: 6),
                           itemBuilder: (context, index) {
                             final option = _currentOfflineOptions[index];
                             final isReturn = option.id == 'voltar_menu';

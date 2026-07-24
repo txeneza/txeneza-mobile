@@ -20,9 +20,8 @@ class ResolucaoDataSource {
           .from('verificacao_resolucao')
           .select('id_foto_verificacao, observacoes')
           .eq('id_ocorrencia', idOcorrencia);
-
-      if (verRows is List && verRows.isNotEmpty) {
-        final lastVer = verRows.last as Map<String, dynamic>;
+      if (verRows.isNotEmpty) {
+        final lastVer = verRows.last;
         observacoesEquipa = lastVer['observacoes'] as String?;
         final idFotoVer = lastVer['id_foto_verificacao'] as String?;
 
@@ -130,7 +129,6 @@ class ResolucaoDataSource {
     String? observacoes,
     String? fotoContestacaoLocalPath,
   }) async {
-    final statusStr = aprovado ? 'aprovado' : 'rejeitado';
     String? contestacaoStoragePath;
 
     if (!aprovado && fotoContestacaoLocalPath != null) {

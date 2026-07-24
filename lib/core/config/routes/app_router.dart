@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../features/auth/data/datasources/profile_completion_service.dart';
 import '../../../../features/onboarding/presentation/pages/splash_screen.dart';
 import 'app_routes.dart';
@@ -161,10 +162,22 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         return;
       }
 
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      final currentSession = Supabase.instance.client.auth.currentSession;
+      var currentUser = Supabase.instance.client.auth.currentUser;
+      var currentSession = Supabase.instance.client.auth.currentSession;
       final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
-      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+
+      // Se o SharedPreferences diz que o utilizador está logado mas o Supabase
+      // ainda está nulo (tempo de carregamento assíncrono do SDK), esperamos 300ms.
+      if ((currentUser == null && currentSession == null) && isLoggedInPref) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        currentUser = Supabase.instance.client.auth.currentUser;
+        currentSession = Supabase.instance.client.auth.currentSession;
+      }
+
+      final bool hasUserSession = currentUser != null || currentSession != null;
+
+      // Mantém a sincronização da flag do SharedPreferences
+      await prefs.setBool('is_logged_in', hasUserSession);
 
       if (!mounted) return;
       if (!hasUserSession) {
@@ -172,12 +185,26 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         return;
       }
 
-      final needsCompletion = await ProfileCompletionService()
-          .needsCompletion()
-          .timeout(
-            const Duration(seconds: 2),
-            onTimeout: () => false,
-          );
+      bool needsCompletion = false;
+
+      // Só validamos a necessidade de completar perfil online. Offline avança direto
+      // para a home para evitar travar o ecrã de splash em timeouts infinitos.
+      final connectivityResults = await Connectivity().checkConnectivity();
+      final hasNetwork = connectivityResults.any((r) => r != ConnectivityResult.none);
+
+      if (hasNetwork) {
+        try {
+          needsCompletion = await ProfileCompletionService()
+              .needsCompletion()
+              .timeout(
+                const Duration(milliseconds: 1500),
+                onTimeout: () => false,
+              );
+        } catch (_) {
+          needsCompletion = false;
+        }
+      }
+
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed(
         needsCompletion ? AppRoutes.completeProfile : AppRoutes.home,
@@ -187,9 +214,10 @@ class _InitialRouteScreenState extends State<InitialRouteScreen> {
         final prefs = await SharedPreferences.getInstance();
         final currentUser = Supabase.instance.client.auth.currentUser;
         final currentSession = Supabase.instance.client.auth.currentSession;
-        final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
-        final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+        final bool hasUserSession = currentUser != null || currentSession != null;
 
+        await prefs.setBool('is_logged_in', hasUserSession);
+        if (!mounted) return;
         Navigator.of(context).pushReplacementNamed(
           hasUserSession ? AppRoutes.home : AppRoutes.login,
         );

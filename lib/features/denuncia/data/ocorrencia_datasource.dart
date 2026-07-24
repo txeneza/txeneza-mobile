@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'categoria_datasource.dart';
@@ -57,7 +59,7 @@ class OcorrenciaDataSource {
           ),
         );
 
-    final nowIso = DateTime.now().toIso8601String();
+    final nowIso = DateTime.now().toUtc().toIso8601String();
 
     // 2. Ocorrência.
     await _client.from('ocorrencia').upsert({
@@ -71,7 +73,7 @@ class OcorrenciaDataSource {
       'estado': 'pendente',
       'modo_classificacao': 'manual',
       'sincronizado': true,
-      'data_hora_registo': draft.dataHoraRegisto.toIso8601String(),
+      'data_hora_registo': draft.dataHoraRegisto.toUtc().toIso8601String(),
       'data_hora_sync': nowIso,
     });
 
@@ -96,6 +98,8 @@ class OcorrenciaDataSource {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
+    final cacheKey = 'ocorrencias_cache_$userId';
+
     try {
       final rows = await _client
           .from('ocorrencia')
@@ -106,10 +110,30 @@ class OcorrenciaDataSource {
           .eq('id_utilizador', userId)
           .order('data_hora_registo', ascending: false);
 
+      // Salva em cache de forma assíncrona
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setString(cacheKey, jsonEncode(rows));
+      }).catchError((e) {
+        debugPrint('Erro ao guardar cache de ocorrencias: $e');
+      });
+
       return (rows as List)
           .map((r) => _mapToOccurrence(r as Map<String, dynamic>))
           .toList();
     } catch (e) {
+      debugPrint('Falha ao carregar ocorrencias do Supabase ($e). A carregar cache local...');
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final raw = prefs.getString(cacheKey);
+        if (raw != null) {
+          final decoded = jsonDecode(raw) as List;
+          return decoded
+              .map((r) => _mapToOccurrence(r as Map<String, dynamic>))
+              .toList();
+        }
+      } catch (cacheErr) {
+        debugPrint('Erro ao carregar cache local de ocorrencias: $cacheErr');
+      }
       return [];
     }
   }

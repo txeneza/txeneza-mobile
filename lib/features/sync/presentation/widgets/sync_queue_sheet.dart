@@ -67,7 +67,7 @@ class _SyncQueueSheetState extends State<SyncQueueSheet> {
     }
 
     setState(() => _isSyncing = true);
-    final count = await _queue.flush();
+    final count = await _queue.flush(forceResetTentativas: true);
     if (!mounted) return;
 
     setState(() => _isSyncing = false);
@@ -182,7 +182,7 @@ class _SyncQueueSheetState extends State<SyncQueueSheet> {
                     : ListView.separated(
                         padding: const EdgeInsets.all(20),
                         itemCount: _pendingDrafts.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        separatorBuilder: (_, _) => const SizedBox(height: 14),
                         itemBuilder: (context, index) {
                           final draft = _pendingDrafts[index];
                           return _buildDraftCard(draft, isDark);
@@ -292,31 +292,47 @@ class _SyncQueueSheetState extends State<SyncQueueSheet> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                 const SizedBox(height: 4),
                 Text(
-                  'Registado: ${draft.dataHoraRegisto.hour}:${draft.dataHoraRegisto.minute.toString().padLeft(2, '0')}',
+                  'Registado: ${draft.dataHoraRegisto.toLocal().hour}:${draft.dataHoraRegisto.toLocal().minute.toString().padLeft(2, '0')}',
                   style: const TextStyle(
                     fontFamily: 'Geist',
                     fontSize: 11,
                     color: AppColors.grey600,
                   ),
                 ),
+                if (draft.ultimoErro != null && draft.tentativas >= 3) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Erro: ${draft.ultimoErro}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 10.5,
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.15),
+              color: draft.tentativas >= 3
+                  ? Colors.red.withValues(alpha: 0.12)
+                  : AppColors.warning.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Text(
-              'Pendente',
+            child: Text(
+              draft.tentativas >= 3 ? 'Falhou' : 'Pendente',
               style: TextStyle(
                 fontFamily: 'Geist',
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: AppColors.warning,
+                color: draft.tentativas >= 3 ? Colors.redAccent : AppColors.warning,
               ),
             ),
           ),

@@ -12,7 +12,7 @@ class LocalNotificationService {
 
     try {
       const androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+          AndroidInitializationSettings('icon_notificacao');
       // Não pedimos permissão aqui: isto é feito explicitamente na tela de
       // permissões (onboarding), junto com Câmara e Localização, para não
       // interromper o utilizador logo ao abrir o app.

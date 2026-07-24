@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/theme_controller/theme_provider.dart';
@@ -38,20 +39,44 @@ class _AppState extends State<App> {
         return AppRoutes.onboarding;
       }
 
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      final currentSession = Supabase.instance.client.auth.currentSession;
+      var currentUser = Supabase.instance.client.auth.currentUser;
+      var currentSession = Supabase.instance.client.auth.currentSession;
       final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
 
-      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+      // Se o SharedPreferences diz que o utilizador está logado mas o Supabase
+      // ainda está nulo (tempo de carregamento assíncrono do SDK), esperamos 300ms.
+      if ((currentUser == null && currentSession == null) && isLoggedInPref) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        currentUser = Supabase.instance.client.auth.currentUser;
+        currentSession = Supabase.instance.client.auth.currentSession;
+      }
+
+      final bool hasUserSession = currentUser != null || currentSession != null;
+
+      // Mantém a sincronização da flag do SharedPreferences
+      await prefs.setBool('is_logged_in', hasUserSession);
+
       if (!hasUserSession) return AppRoutes.login;
 
-      // Se o utilizador estiver offline ou a ligação for lenta, o timeout garante que a app avança
-      final needsCompletion = await ProfileCompletionService()
-          .needsCompletion()
-          .timeout(
-            const Duration(seconds: 2),
-            onTimeout: () => false,
-          );
+      bool needsCompletion = false;
+
+      // Só validamos a necessidade de completar perfil online. Offline avança direto
+      // para a home para evitar travar o ecrã de splash em timeouts infinitos.
+      final connectivityResults = await Connectivity().checkConnectivity();
+      final hasNetwork = connectivityResults.any((r) => r != ConnectivityResult.none);
+
+      if (hasNetwork) {
+        try {
+          needsCompletion = await ProfileCompletionService()
+              .needsCompletion()
+              .timeout(
+                const Duration(milliseconds: 1500),
+                onTimeout: () => false,
+              );
+        } catch (_) {
+          needsCompletion = false;
+        }
+      }
 
       // Garante uma exibição mínima do Splash de 1.5s para transição suave
       final elapsed = DateTime.now().difference(startTime);
@@ -64,9 +89,9 @@ class _AppState extends State<App> {
       final prefs = await SharedPreferences.getInstance();
       final currentUser = Supabase.instance.client.auth.currentUser;
       final currentSession = Supabase.instance.client.auth.currentSession;
-      final isLoggedInPref = prefs.getBool('is_logged_in') ?? false;
-      final bool hasUserSession = currentUser != null || currentSession != null || isLoggedInPref;
+      final bool hasUserSession = currentUser != null || currentSession != null;
 
+      await prefs.setBool('is_logged_in', hasUserSession);
       return hasUserSession ? AppRoutes.home : AppRoutes.login;
     }
   }

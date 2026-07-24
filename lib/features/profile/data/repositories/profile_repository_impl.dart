@@ -132,8 +132,9 @@ class ProfileRepositoryImpl implements ProfileRepository {
       longitude: double.tryParse(row['longitude'].toString()) ?? 0,
       estado: row['estado'] as String? ?? 'pendente',
       gravidade: row['gravidade'] as String? ?? 'media',
-      dataHora: DateTime.tryParse(row['data_hora_registo'].toString()) ??
-          DateTime.now(),
+      dataHora: (DateTime.tryParse(row['data_hora_registo'].toString()) ??
+              DateTime.now())
+          .toLocal(),
     );
   }
 }

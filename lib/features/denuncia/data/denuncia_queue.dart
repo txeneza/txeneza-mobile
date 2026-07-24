@@ -67,14 +67,42 @@ class DenunciaQueue {
     await prefs.setStringList(_prefsKey, list);
   }
 
+  Future<void> _update(DenunciaDraft draft) async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_prefsKey) ?? [];
+    final index = list.indexWhere((s) {
+      final map = jsonDecode(s) as Map<String, dynamic>;
+      return map['id'] == draft.id;
+    });
+    if (index != -1) {
+      list[index] = jsonEncode(draft.toJson());
+      await prefs.setStringList(_prefsKey, list);
+    }
+  }
+
   /// Tenta submeter todas as denúncias pendentes. Cada sucesso remove o draft e
-  /// apaga a foto local. Uma falha (rede) deixa o draft na fila para a próxima
-  /// tentativa. Devolve quantas foram sincronizadas.
-  Future<int> flush() async {
-    final drafts = await pending();
+  /// apaga a foto local. Se forçada pelo utilizador, reinicia as tentativas.
+  /// Caso contrário, pula denúncias com falhas persistentes repetidas (> 3 vezes).
+  Future<int> flush({bool forceResetTentativas = false}) async {
+    List<DenunciaDraft> drafts = await pending();
+    
+    if (forceResetTentativas) {
+      for (var i = 0; i < drafts.length; i++) {
+        if (drafts[i].tentativas > 0) {
+          drafts[i] = drafts[i].copyWith(tentativas: 0, ultimoErro: null);
+          await _update(drafts[i]);
+        }
+      }
+    }
+
     int sincronizadas = 0;
 
     for (final draft in drafts) {
+      // Pula rascunhos que já falharam consecutivamente mais de 3 vezes por erro não de rede.
+      if (draft.tentativas >= 3) {
+        continue;
+      }
+
       try {
         await _ocorrenciaDataSource.submit(draft);
         await _remove(draft.id);
@@ -82,9 +110,27 @@ class DenunciaQueue {
         if (await f.exists()) await f.delete();
         sincronizadas++;
       } catch (e) {
-        // Sem rede ou erro temporário: mantém na fila e para (evita martelar).
+        final errorStr = e.toString();
         debugPrint('Falha ao sincronizar denúncia ${draft.id}: $e');
-        break;
+
+        // Se for erro de rede/timeout, para o loop para evitar martelar
+        final isNetworkError = errorStr.contains('SocketException') ||
+            errorStr.contains('ClientException') ||
+            errorStr.contains('TimeoutException') ||
+            errorStr.contains('Connection failed') ||
+            errorStr.contains('Failed host lookup');
+
+        if (isNetworkError) {
+          break;
+        } else {
+          // Erro lógico/estrutural/permissão: incrementa tentativas para não travar a fila.
+          final updated = draft.copyWith(
+            tentativas: draft.tentativas + 1,
+            ultimoErro: errorStr,
+          );
+          await _update(updated);
+          continue;
+        }
       }
     }
     return sincronizadas;
