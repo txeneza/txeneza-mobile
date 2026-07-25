@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
@@ -118,15 +119,58 @@ class ChatBubble extends StatelessWidget {
                     AppSpacing.verticalSpaceSM,
                   ],
 
-                  Text(
-                    text,
-                    style: TextStyles.captionLarge.copyWith(
-                      color: isUser
-                          ? AppColors.white
-                          : (isDark ? AppColors.white : AppColors.grey900),
-                      height: 1.4,
-                    ),
-                  ),
+                  isUser
+                      ? Text(
+                          text,
+                          style: TextStyles.captionLarge.copyWith(
+                            color: AppColors.white,
+                            height: 1.4,
+                          ),
+                        )
+                      : MarkdownBody(
+                          data: text,
+                          selectable: true,
+                          styleSheet: MarkdownStyleSheet(
+                            p: TextStyles.captionLarge.copyWith(
+                              color: isDark ? AppColors.white : AppColors.grey900,
+                              height: 1.4,
+                            ),
+                            strong: TextStyles.captionLarge.copyWith(
+                              color: isDark ? DarkColors.accent : AppColors.forestGreen,
+                              fontWeight: FontWeight.bold,
+                              height: 1.4,
+                            ),
+                            em: TextStyles.captionLarge.copyWith(
+                              color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                              fontStyle: FontStyle.italic,
+                              height: 1.4,
+                            ),
+                            listBullet: TextStyles.captionLarge.copyWith(
+                              color: isDark ? DarkColors.accent : AppColors.forestGreen,
+                            ),
+                            code: TextStyle(
+                              fontFamily: 'Geist',
+                              fontSize: 12,
+                              color: isDark ? DarkColors.accent : AppColors.forestGreen,
+                              backgroundColor: isDark
+                                  ? AppColors.grey900.withValues(alpha: 0.5)
+                                  : AppColors.grey100,
+                            ),
+                            codeblockDecoration: BoxDecoration(
+                              color: isDark ? AppColors.grey900 : AppColors.grey100,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            h1: TextStyles.titleLarge.copyWith(
+                              color: isDark ? Colors.white : AppColors.grey900,
+                            ),
+                            h2: TextStyles.titleMedium.copyWith(
+                              color: isDark ? Colors.white : AppColors.grey900,
+                            ),
+                            h3: TextStyles.subtitleLarge.copyWith(
+                              color: isDark ? Colors.white : AppColors.grey900,
+                            ),
+                          ),
+                        ),
                   AppSpacing.verticalSpaceXXS,
 
                   Row(
