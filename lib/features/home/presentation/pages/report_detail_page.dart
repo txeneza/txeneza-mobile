@@ -4,7 +4,11 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../../map/data/reverse_geocoder.dart';
+import '../../../occurrence/data/resolucao_datasource.dart';
+import '../../../occurrence/domain/resolucao_verificacao.dart';
+import '../../../occurrence/presentation/pages/resolucao_verification_page.dart';
 import '../../../profile/domain/my_report.dart';
 
 /// Detalhe em ecrã cheio de uma ocorrência: foto grande, descrição completa,
@@ -22,10 +26,40 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   String? _bairro;
   bool _resolvingBairro = true;
 
+  ResolucaoVerificacao? _verificacao;
+  bool _loadingVerificacao = false;
+
   @override
   void initState() {
     super.initState();
     _resolveBairro();
+    if (_isResolvidoOuEmVerificacao()) {
+      _loadVerificacao();
+    }
+  }
+
+  bool _isResolvidoOuEmVerificacao() {
+    final e = widget.report.estado.toLowerCase();
+    return e == 'resolvido' ||
+        e == 'resolvida' ||
+        e == 'em_verificacao' ||
+        e == 'concluido';
+  }
+
+  Future<void> _loadVerificacao() async {
+    setState(() => _loadingVerificacao = true);
+    try {
+      final res =
+          await ResolucaoDataSource().fetchVerificacao(widget.report.id);
+      if (!mounted) return;
+      setState(() {
+        _verificacao = res;
+        _loadingVerificacao = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingVerificacao = false);
+    }
   }
 
   /// Converte as coordenadas num nome de zona/bairro. É best-effort e depende de
@@ -142,8 +176,190 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     label: 'Data',
                     value: report.dataFormatada,
                   ),
+                  if (_isResolvidoOuEmVerificacao())
+                    _buildAnexosResolucaoSection(isDark),
                   const SizedBox(height: 30),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnexosResolucaoSection(bool isDark) {
+    if (_loadingVerificacao) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: isDark ? DarkColors.accent : AppColors.forestGreen,
+            strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    final ver = _verificacao;
+    if (ver == null) return const SizedBox.shrink();
+
+    final temFotoResolucao =
+        ver.fotoResolucaoUrl != null && ver.fotoResolucaoUrl!.isNotEmpty;
+    final obs = ver.observacoesEquipa;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 22),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? DarkColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? DarkColors.accent.withValues(alpha: 0.3)
+              : AppColors.sageGreen.withValues(alpha: 0.6),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                LucideIcons.paperclip,
+                size: 18,
+                color: isDark ? DarkColors.accent : AppColors.forestGreen,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'ANEXOS DA RESOLUÇÃO',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                    color: isDark ? DarkColors.accent : AppColors.forestGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (temFotoResolucao) ...[
+            Text(
+              'Foto da Limpeza / Intervenção Realizada:',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : AppColors.grey800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: ver.fotoResolucaoUrl!,
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                placeholder: (ctx, url) => Container(
+                  height: 180,
+                  color: isDark ? AppColors.grey800 : AppColors.grey100,
+                  child: const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+                errorWidget: (ctx, url, err) => Container(
+                  height: 180,
+                  color: AppColors.forestGreen.withValues(alpha: 0.1),
+                  child: const Center(
+                    child: Icon(LucideIcons.imageOff,
+                        size: 36, color: AppColors.grey600),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (obs != null && obs.isNotEmpty) ...[
+            Text(
+              'Observações da Equipa Técnica:',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : AppColors.grey800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              obs,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 13.5,
+                height: 1.4,
+                color: isDark ? Colors.white : AppColors.grey900,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (ver.dataResolucao != null) ...[
+            Row(
+              children: [
+                Icon(LucideIcons.clock,
+                    size: 14,
+                    color: isDark ? Colors.white54 : AppColors.grey600),
+                const SizedBox(width: 6),
+                Text(
+                  'Concluído em: ${formatChatDataHora(ver.dataResolucao!)}',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12,
+                    color: isDark ? Colors.white60 : AppColors.grey600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => ResolucaoVerificationPage(
+                      occurrenceId: widget.report.id,
+                      occurrenceTitle: widget.report.categoria,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(LucideIcons.checkCheck, size: 16),
+              label: const Text(
+                'Verificar / Confirmar Resolução',
+                style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    isDark ? DarkColors.accent : AppColors.forestGreen,
+                foregroundColor: isDark ? DarkColors.onAccent : Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),

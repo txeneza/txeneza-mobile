@@ -247,6 +247,11 @@ class _ReportCard extends StatelessWidget {
                     left: 8,
                     child: _estadoBadge(),
                   ),
+                  Positioned(
+                    bottom: 8,
+                    right: 8,
+                    child: _anexosBadge(),
+                  ),
                 ],
               ),
             ),
@@ -361,6 +366,43 @@ class _ReportCard extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
+      ),
+    );
+  }
+
+  Widget _anexosBadge() {
+    final e = report.estado.toLowerCase();
+    if (e != 'resolvido' &&
+        e != 'resolvida' &&
+        e != 'em_verificacao' &&
+        e != 'concluido') {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.70),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.limeGreen.withValues(alpha: 0.7),
+          width: 0.9,
+        ),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.paperclip, size: 10, color: AppColors.limeGreen),
+          SizedBox(width: 3),
+          Text(
+            'Anexos',
+            style: TextStyle(
+              fontFamily: 'Geist',
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

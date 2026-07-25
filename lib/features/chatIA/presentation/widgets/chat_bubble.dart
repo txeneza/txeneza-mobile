@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
 
@@ -63,7 +64,7 @@ class ChatBubble extends StatelessWidget {
                     : null,
                 color: isUser
                     ? null
-                    : (isDark ? AppColors.grey900 : AppColors.white),
+                    : (isDark ? DarkColors.surface : AppColors.white),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
@@ -77,7 +78,9 @@ class ChatBubble extends StatelessWidget {
                 border: isUser
                     ? null
                     : Border.all(
-                        color: isDark ? AppColors.grey800 : AppColors.grey200,
+                        color: isDark
+                            ? DarkColors.accent.withValues(alpha: 0.15)
+                            : AppColors.grey200,
                         width: 1.0,
                       ),
                 boxShadow: [
@@ -188,12 +191,12 @@ class _ActionButton extends StatelessWidget {
           children: [
             Icon(icon,
                 size: 13,
-                color: isDark ? AppColors.sageGreen : AppColors.forestGreen),
+                color: isDark ? DarkColors.accent : AppColors.forestGreen),
             AppSpacing.horizontalSpaceXXS,
             Text(
               label,
               style: TextStyles.captionSmall.copyWith(
-                color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                color: isDark ? DarkColors.accent : AppColors.forestGreen,
                 fontWeight: FontWeight.w600,
                 fontSize: 11,
               ),

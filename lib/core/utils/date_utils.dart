@@ -45,3 +45,30 @@ String tempoRelativo(DateTime dataHora) {
   final month = localDataHora.month.toString().padLeft(2, '0');
   return '$day/$month';
 }
+
+/// Formata a data/hora para mensagens de chat ("17:00", "Ontem às 17:00", "24/07 às 17:00" ou "24/07/2026 às 17:00").
+String formatChatDataHora(DateTime dt) {
+  final now = DateTime.now();
+  final local = dt.toLocal();
+
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+  final dateOnly = DateTime(local.year, local.month, local.day);
+
+  final hora =
+      '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+
+  if (dateOnly.isAtSameMomentAs(today)) {
+    return hora;
+  } else if (dateOnly.isAtSameMomentAs(yesterday)) {
+    return 'Ontem às $hora';
+  } else if (local.year == now.year) {
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return '$day/$month às $hora';
+  } else {
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} às $hora';
+  }
+}

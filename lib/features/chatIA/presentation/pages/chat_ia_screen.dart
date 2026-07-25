@@ -4,9 +4,11 @@ import '../../../../core/network/network_info.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/icons/app_icons.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../core/theme/typography/text_styles.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
 import '../../data/user_context_service.dart';
@@ -194,10 +196,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   }
 
   String _formatHora(DateTime dt) {
-    final local = dt.toLocal();
-    final h = local.hour.toString().padLeft(2, '0');
-    final m = local.minute.toString().padLeft(2, '0');
-    return '$h:$m';
+    return formatChatDataHora(dt);
   }
 
   @override
@@ -592,13 +591,15 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.forestGreen.withValues(alpha: 0.1),
+                          color: isDark
+                              ? DarkColors.accent.withValues(alpha: 0.15)
+                              : AppColors.forestGreen.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             LucideIcons.camera,
-                            color: AppColors.forestGreen,
+                            color: isDark ? DarkColors.accent : AppColors.forestGreen,
                             size: 20,
                           ),
                           onPressed: _isOnline ? _openImageSelectionModal : null,
@@ -612,8 +613,14 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.grey800 : AppColors.grey100,
+                          color: isDark ? DarkColors.surface : AppColors.grey100,
                           borderRadius: BorderRadius.circular(22),
+                          border: isDark
+                              ? Border.all(
+                                  color: DarkColors.accent.withValues(alpha: 0.25),
+                                  width: 1,
+                                )
+                              : null,
                         ),
                         child: TextField(
                           controller: _messageController,
@@ -627,7 +634,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                                 ? 'Fale com a Xeni sobre resíduos...'
                                 : 'Modo offline: toque numa opção acima',
                             hintStyle: TextStyles.captionLarge.copyWith(
-                              color: AppColors.grey600,
+                              color: isDark ? AppColors.grey400 : AppColors.grey600,
                               fontSize: _isOnline ? 13 : 11.5,
                             ),
                             border: InputBorder.none,
@@ -645,13 +652,15 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: _isOnline ? AppColors.forestGreen : AppColors.grey600,
+                          color: _isOnline
+                              ? (isDark ? DarkColors.accent : AppColors.forestGreen)
+                              : AppColors.grey600,
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          icon: const Icon(
+                          icon: Icon(
                             LucideIcons.send,
-                            color: AppColors.white,
+                            color: _isOnline && isDark ? DarkColors.onAccent : AppColors.white,
                             size: 16,
                           ),
                           onPressed: _isOnline ? () => _sendMessage(_messageController.text) : null,
