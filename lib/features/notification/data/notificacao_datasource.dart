@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/notificacao_model.dart';
+import '../services/local_notification_service.dart';
 
 /// Lê as notificações do morador e marca-as como lidas.
 /// Suporta cache local (SharedPreferences) para funcionamento offline.
@@ -50,6 +51,10 @@ class NotificacaoDataSource {
     }).toList();
     await _saveToCache(userId, updatedList);
 
+    if (!updatedList.any((n) => !n.lida)) {
+      await LocalNotificationService.cancelAllNotifications();
+    }
+
     try {
       await _client
           .from('notificacao')
@@ -69,6 +74,8 @@ class NotificacaoDataSource {
     final cached = await _loadFromCache(userId);
     final updatedList = cached.map((n) => n.copyWith(lida: true)).toList();
     await _saveToCache(userId, updatedList);
+
+    await LocalNotificationService.cancelAllNotifications();
 
     try {
       await _client

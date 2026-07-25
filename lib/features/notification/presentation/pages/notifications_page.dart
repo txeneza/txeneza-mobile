@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/colors/dark_colors.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../../home/presentation/pages/report_detail_page.dart';
 import '../../../occurrence/presentation/pages/resolucao_verification_page.dart';
 import '../../../profile/domain/my_report.dart';
 import '../../data/notificacao_datasource.dart';
 import '../../domain/notificacao_model.dart';
+import '../../services/local_notification_service.dart';
 import '../widgets/notification_tile.dart';
 
 /// Ecrã de centro de notificações do morador.
@@ -48,6 +51,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
         _notificacoes = items;
         _isLoading = false;
       });
+      if (items.every((n) => n.lida)) {
+        await LocalNotificationService.cancelAllNotifications();
+      }
     } catch (e) {
       // fetchNotificacoes() já trata os próprios erros e devolve lista
       // vazia; este catch é só uma rede de segurança adicional para nunca
@@ -166,9 +172,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       longitude: double.tryParse(row['longitude'].toString()) ?? 0,
       estado: row['estado'] as String? ?? 'pendente',
       gravidade: row['gravidade'] as String? ?? 'media',
-      dataHora: (DateTime.tryParse(row['data_hora_registo'].toString()) ??
-              DateTime.now())
-          .toLocal(),
+      dataHora: parseUtcDateTime(row['data_hora_registo']),
     );
   }
 
@@ -208,18 +212,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
           if (naoLidas.isNotEmpty)
             TextButton(
               onPressed: _marcarTodasComoLidas,
-              child: const Text(
+              child: Text(
                 'Marcar tudo como lido',
-                style: TextStyle(color: AppColors.forestGreen, fontWeight: FontWeight.w700, fontSize: 12.5),
+                style: TextStyle(
+                  color: isDark ? DarkColors.accent : AppColors.forestGreen,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                ),
               ),
             ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadNotificacoes,
-        color: AppColors.forestGreen,
+        color: isDark ? DarkColors.accent : AppColors.forestGreen,
         child: _isLoading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.forestGreen))
+            ? Center(child: CircularProgressIndicator(color: isDark ? DarkColors.accent : AppColors.forestGreen))
             : _notificacoes.isEmpty
                 ? _buildEmptyState(isDark)
                 : ListView(

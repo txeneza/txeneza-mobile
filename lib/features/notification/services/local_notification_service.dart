@@ -68,4 +68,16 @@ class LocalNotificationService {
       debugPrint('Erro ao disparar notificação local: $e');
     }
   }
+
+  /// Limpa todas as notificações ativas do aplicativo da gaveta do sistema
+  /// operativo (Android/iOS) e remove o indicador (badge) de mensagens pendentes.
+  static Future<void> cancelAllNotifications() async {
+    if (!_initialized) await initialize();
+
+    try {
+      await _plugin.cancelAll();
+    } catch (e) {
+      debugPrint('Erro ao limpar notificações do sistema: $e');
+    }
+  }
 }

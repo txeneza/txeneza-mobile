@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/colors/app_colors.dart';
+import '../../../../core/theme/colors/dark_colors.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/notificacao_model.dart';
 
 /// Mapeamento ícone/cor/título por tipo de notificação. Espelha
@@ -39,19 +41,6 @@ _TipoVisual _visualParaTipo(String tipo) {
   }
 }
 
-/// Texto de tempo relativo simples, em português ("agora", "há 5 min",
-/// "há 2h", "há 3 dias"). Cai para data absoluta (dd/mm) a partir de 7 dias.
-String tempoRelativo(DateTime dataHora) {
-  final diff = DateTime.now().difference(dataHora);
-
-  if (diff.inSeconds < 60) return 'agora';
-  if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
-  if (diff.inHours < 24) return 'há ${diff.inHours}h';
-  if (diff.inDays < 7) return 'há ${diff.inDays} dia${diff.inDays > 1 ? 's' : ''}';
-
-  return '${dataHora.day.toString().padLeft(2, '0')}/${dataHora.month.toString().padLeft(2, '0')}';
-}
-
 /// Item de lista reutilizável para uma notificação. Usado tanto na secção
 /// "Não lidas" como "Lidas" da página de notificações — a única diferença
 /// visual entre os dois estados é o destaque (fundo/bolinha) de não lida.
@@ -80,7 +69,7 @@ class NotificationTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: naoLida
               ? (isDark
-                  ? AppColors.limeGreen.withValues(alpha: 0.08)
+                  ? DarkColors.accent.withValues(alpha: 0.12)
                   : AppColors.mintGreen.withValues(alpha: 0.25))
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
@@ -120,7 +109,7 @@ class NotificationTile extends StatelessWidget {
                           height: 8,
                           margin: const EdgeInsets.only(left: 6, top: 4),
                           decoration: const BoxDecoration(
-                            color: AppColors.limeGreen,
+                            color: DarkColors.accent,
                             shape: BoxShape.circle,
                           ),
                         ),

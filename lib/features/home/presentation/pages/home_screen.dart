@@ -24,6 +24,7 @@ import '../../../chatIA/presentation/pages/chat_ia_screen.dart';
 import '../../../notification/data/notificacao_datasource.dart';
 import '../../../notification/presentation/pages/notifications_page.dart';
 import '../../../notification/services/fcm_service.dart';
+import '../../../notification/services/local_notification_service.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../sync/presentation/widgets/sync_queue_sheet.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
@@ -93,9 +94,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final notificacoes = await _notificacaoDataSource.fetchNotificacoes();
       if (!mounted) return;
+      final count = notificacoes.where((n) => !n.lida).length;
       setState(() {
-        _unreadCount = notificacoes.where((n) => !n.lida).length;
+        _unreadCount = count;
       });
+      if (count == 0) {
+        await LocalNotificationService.cancelAllNotifications();
+      }
     } catch (e) {
       debugPrint('Falha ao carregar contagem de notificações: $e');
     }

@@ -44,7 +44,7 @@ ThemeData get darkTheme {
       shape: RoundedRectangleBorder(
         borderRadius: AppRadius.borderMD,
         side: BorderSide(
-          color: DarkColors.primary.withValues(alpha: 0.1),
+          color: DarkColors.accent.withValues(alpha: 0.15),
           width: 1,
         ),
       ),
@@ -65,7 +65,7 @@ ThemeData get darkTheme {
       focusedBorder: const OutlineInputBorder(
         borderRadius: AppRadius.borderMD,
         borderSide: BorderSide(
-          color: DarkColors.primary,
+          color: DarkColors.accent,
           width: 2,
         ),
       ),
@@ -76,10 +76,14 @@ ThemeData get darkTheme {
         ),
       ),
     ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      backgroundColor: DarkColors.accent,
+      foregroundColor: DarkColors.onAccent,
+    ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: DarkColors.primary,
-        foregroundColor: DarkColors.onPrimary,
+        backgroundColor: DarkColors.accent,
+        foregroundColor: DarkColors.onAccent,
         minimumSize: const Size(88, 48), // Ensure minimum 48px touch target height
         shape: const RoundedRectangleBorder(
           borderRadius: AppRadius.borderMD,

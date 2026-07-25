@@ -41,7 +41,7 @@ class FloatingBottomNavigationBar extends StatelessWidget {
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
+                ? DarkColors.accent.withValues(alpha: 0.20)
                 : const Color(0xFFE8E5DD),
             width: 1,
           ),
@@ -67,8 +67,8 @@ class FloatingBottomNavigationBar extends StatelessWidget {
             final destination = destinations[index];
             final isSelected = index == selectedIndex;
 
-            final activeColor = AppColors.forestGreen;
-            final inactiveColor = isDark ? AppColors.grey300 : AppColors.grey600;
+            final activeColor = isDark ? DarkColors.accent : AppColors.forestGreen;
+            final inactiveColor = isDark ? AppColors.grey400 : AppColors.grey600;
 
             return Expanded(
               child: GestureDetector(
@@ -92,7 +92,7 @@ class FloatingBottomNavigationBar extends StatelessWidget {
                           padding: const EdgeInsets.all(7),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? activeColor.withValues(alpha: 0.10)
+                                ? activeColor.withValues(alpha: isDark ? 0.18 : 0.10)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(14),
                           ),

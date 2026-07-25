@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/utils/date_utils.dart';
 
 /// Uma troca guardada: mensagem do utilizador + resposta da Xeni.
 class ConversaTurno {
@@ -56,9 +57,7 @@ class ConversacaoDataSource {
       return ConversaTurno(
         mensagemUtilizador: map['mensagem_utilizador'] as String? ?? '',
         respostaXeni: map['resposta_xeni'] as String? ?? '',
-        dataHora: (DateTime.tryParse(map['data_hora'].toString()) ??
-                DateTime.now())
-            .toLocal(),
+        dataHora: parseUtcDateTime(map['data_hora']),
       );
     }).toList();
   }

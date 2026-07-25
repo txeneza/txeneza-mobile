@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/utils/date_utils.dart';
 import '../domain/resolucao_verificacao.dart';
 
 /// Datasource Supabase para o ciclo de verificação fotográfica pelo morador.
@@ -114,7 +115,7 @@ class ResolucaoDataSource {
       fotoInicialUrl: urlInicial,
       fotoResolucaoUrl: urlResolucao,
       dataResolucao: occ != null && occ['data_hora_sync'] != null
-          ? DateTime.tryParse(occ['data_hora_sync'] as String)
+          ? parseUtcDateTime(occ['data_hora_sync'])
           : DateTime.now(),
       observacoesEquipa: observacoesEquipa,
       statusVerificacao: StatusVerificacaoMorador.pendente,

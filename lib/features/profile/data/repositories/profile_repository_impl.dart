@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/errors/supabase_error_translator.dart';
+import '../../../../core/utils/date_utils.dart';
 import '../../domain/my_report.dart';
 import '../../domain/profile_stats.dart';
 import '../../domain/repositories/profile_repository.dart';
@@ -157,9 +158,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
       longitude: double.tryParse(row['longitude'].toString()) ?? 0,
       estado: row['estado'] as String? ?? 'pendente',
       gravidade: row['gravidade'] as String? ?? 'media',
-      dataHora: (DateTime.tryParse(row['data_hora_registo'].toString()) ??
-              DateTime.now())
-          .toLocal(),
+      dataHora: parseUtcDateTime(row['data_hora_registo']),
     );
   }
 }

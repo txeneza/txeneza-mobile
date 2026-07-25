@@ -1,3 +1,5 @@
+import '../../../core/utils/date_utils.dart';
+
 /// Modelo do ciclo de verificação fotográfica da resolução de uma denúncia.
 enum StatusVerificacaoMorador {
   pendente,
@@ -41,7 +43,7 @@ class ResolucaoVerificacao {
       fotoInicialUrl: json['foto_inicial_url'] as String?,
       fotoResolucaoUrl: json['foto_resolucao_url'] as String?,
       dataResolucao: json['data_resolucao'] != null
-          ? DateTime.tryParse(json['data_resolucao'] as String)
+          ? parseUtcDateTime(json['data_resolucao'])
           : null,
       observacoesEquipa: json['observacoes_equipa'] as String?,
       statusVerificacao: StatusVerificacaoMorador.fromDb(

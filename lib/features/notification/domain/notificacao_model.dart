@@ -1,3 +1,5 @@
+import '../../../core/utils/date_utils.dart';
+
 /// Tipos reais de notificação gravados pelo backend web (ver
 /// txeneza-web: src/app/api/occurrences/[id]/route.ts e
 /// src/app/api/occurrences/[id]/verifications/route.ts). Mantidos como
@@ -43,9 +45,7 @@ class NotificacaoModel {
       tipo: json['tipo'] as String? ?? NotificacaoTipo.alteracaoEstado,
       mensagem: json['mensagem'] as String? ?? '',
       lida: json['lida'] as bool? ?? false,
-      dataHora: json['data_hora'] != null
-          ? DateTime.tryParse(json['data_hora'] as String) ?? DateTime.now()
-          : DateTime.now(),
+      dataHora: parseUtcDateTime(json['data_hora']),
     );
   }
 
@@ -69,7 +69,7 @@ class NotificacaoModel {
       'tipo': tipo,
       'mensagem': mensagem,
       'lida': lida,
-      'data_hora': dataHora.toIso8601String(),
+      'data_hora': dataHora.toUtc().toIso8601String(),
     };
   }
 }
