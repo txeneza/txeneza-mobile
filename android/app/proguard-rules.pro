@@ -9,6 +9,11 @@
 
 # Firebase Messaging — necessário para notificações push
 -keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# Google Play Core / Deferred components (evita falha de compilação R8 no assembleRelease)
+-dontwarn com.google.android.play.core.**
+-keep class com.google.android.play.core.** { *; }
 
 # Evita remover enums usados no código Kotlin/Java
 -keepclassmembers enum * {
