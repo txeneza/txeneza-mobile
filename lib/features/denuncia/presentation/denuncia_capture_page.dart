@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,7 +7,6 @@ import 'package:latlong2/latlong.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
-
 import '../../../core/theme/colors/app_colors.dart';
 import '../../../core/theme/colors/dark_colors.dart';
 import '../../chatIA/data/services/gemini_service.dart';
@@ -17,10 +17,8 @@ import '../domain/categoria.dart';
 import '../domain/denuncia_draft.dart';
 import '../domain/gravidade.dart';
 import 'denuncia_controller.dart';
-
 /// Resultado devolvido ao fechar a página, para a home saber o que aconteceu.
 enum DenunciaResult { sentOnline, queuedOffline }
-
 /// Fluxo de captura de denúncia: foto → GPS + validação Beira → IA (Gemini) →
 /// categoria + gravidade → submeter (online ou fila offline).
 class DenunciaCapturePage extends StatefulWidget {
@@ -53,6 +51,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
   bool _locationInsideBeira = false;
   bool _resolvingLocation = false;
   String? _locationError;
+  bool _isLocationFromExif = false;
 
   List<Categoria> _categorias = [];
   Categoria? _selectedCategoria;
@@ -77,8 +76,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     if (widget.initialImagePath != null) {
       _imagePath = widget.initialImagePath;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _resolveLocation();
-        _runAIClassification(widget.initialImagePath!);
+        _processSelectedPhoto(widget.initialImagePath!);
       });
     }
   }
@@ -111,7 +109,6 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
       });
     }
   }
-
   Future<void> _runAIClassification(String imagePath) async {
     if (!widget.isOnline) return;
 
@@ -218,30 +215,251 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     );
   }
 
-  Future<void> _capturePhoto() async {
-    final cameraStatus = await Permission.camera.request();
-    if (!cameraStatus.isGranted) {
-      _showPermissionDeniedDialog('Câmara');
-      return;
+  Future<LatLng?> _extractExifLocation(String filePath) async {
+    try {
+      final bytes = await File(filePath).readAsBytes();
+      final data = await readExifFromBytes(bytes);
+      if (data.isEmpty) return null;
+
+      final latTag = data['GPS GPSLatitude'];
+      final latRefTag = data['GPS GPSLatitudeRef'];
+      final lngTag = data['GPS GPSLongitude'];
+      final lngRefTag = data['GPS GPSLongitudeRef'];
+
+      if (latTag == null || latRefTag == null || lngTag == null || lngRefTag == null) {
+        return null;
+      }
+
+      final latValues = latTag.values.toList();
+      final lngValues = lngTag.values.toList();
+
+      if (latValues.length < 3 || lngValues.length < 3) return null;
+
+      double ratioToDouble(dynamic item) {
+        if (item is Ratio) {
+          return item.numerator / item.denominator;
+        } else if (item is num) {
+          return item.toDouble();
+        }
+        return 0.0;
+      }
+
+      final latDeg = ratioToDouble(latValues[0]);
+      final latMin = ratioToDouble(latValues[1]);
+      final latSec = ratioToDouble(latValues[2]);
+      var lat = latDeg + (latMin / 60.0) + (latSec / 3600.0);
+
+      final latRef = latRefTag.printable.trim().toUpperCase();
+      if (latRef == 'S') {
+        lat = -lat;
+      }
+
+      final lngDeg = ratioToDouble(lngValues[0]);
+      final lngMin = ratioToDouble(lngValues[1]);
+      final lngSec = ratioToDouble(lngValues[2]);
+      var lng = lngDeg + (lngMin / 60.0) + (lngSec / 3600.0);
+
+      final lngRef = lngRefTag.printable.trim().toUpperCase();
+      if (lngRef == 'W') {
+        lng = -lng;
+      }
+
+      if (lat == 0.0 && lng == 0.0) return null;
+
+      return LatLng(lat, lng);
+    } catch (e) {
+      debugPrint('Erro ao extrair metadados EXIF da imagem: $e');
+      return null;
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    if (source == ImageSource.camera) {
+      final cameraStatus = await Permission.camera.request();
+      if (!cameraStatus.isGranted) {
+        _showPermissionDeniedDialog('Câmara');
+        return;
+      }
     }
 
     final XFile? photo = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 60,
       maxWidth: 1280,
       maxHeight: 1280,
     );
     if (photo == null) return;
 
-    setState(() => _imagePath = photo.path);
-    await _resolveLocation();
-    await _runAIClassification(photo.path);
+    setState(() {
+      _imagePath = photo.path;
+      _isLocationFromExif = false;
+    });
+
+    await _processSelectedPhoto(photo.path);
+  }
+
+  Future<void> _processSelectedPhoto(String imagePath) async {
+    final exifLocation = await _extractExifLocation(imagePath);
+    if (exifLocation != null && BeiraGeo.isInsideBeira(exifLocation)) {
+      if (!mounted) return;
+      setState(() {
+        _location = exifLocation;
+        _locationAccuracy = null;
+        _locationInsideBeira = true;
+        _resolvingLocation = false;
+        _locationError = null;
+        _isLocationFromExif = true;
+      });
+      _showSnack('Localização extraída dos metadados EXIF da imagem.');
+    } else {
+      await _resolveLocation();
+    }
+
+    await _runAIClassification(imagePath);
+  }
+
+  void _showImageSourcePicker(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? DarkColors.surface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : AppColors.grey300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Selecionar Imagem',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.grey900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tire uma foto no local ou escolha uma imagem da galeria',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 12.5,
+                    color: isDark ? Colors.white70 : AppColors.grey600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSourceOptionCard(
+                        isDark: isDark,
+                        icon: LucideIcons.camera,
+                        title: 'Câmara',
+                        subtitle: 'Tirar foto agora',
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _pickImage(ImageSource.camera);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildSourceOptionCard(
+                        isDark: isDark,
+                        icon: LucideIcons.image,
+                        title: 'Galeria',
+                        subtitle: 'Escolher da galeria',
+                        onTap: () {
+                          Navigator.of(ctx).pop();
+                          _pickImage(ImageSource.gallery);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSourceOptionCard({
+    required bool isDark,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: isDark ? AppColors.grey800 : AppColors.grey50,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: isDark ? Colors.white12 : AppColors.grey200,
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.forestGreen.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: AppColors.forestGreen, size: 22),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : AppColors.grey900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 11,
+                  color: isDark ? Colors.white60 : AppColors.grey600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _resolveLocation() async {
     setState(() {
       _resolvingLocation = true;
       _locationError = null;
+      _isLocationFromExif = false;
     });
 
     try {
@@ -260,7 +478,6 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
       if (permission == LocationPermission.denied) {
         throw 'Permissão de localização necessária para denunciar.';
       }
-
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
           accuracy: LocationAccuracy.high,
@@ -466,7 +683,6 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
       ),
     );
   }
-
   Widget _summaryTile(String title, String val, IconData icon, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -735,36 +951,93 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
 
   Widget _buildPhotoSection(bool isDark) {
     if (_imagePath == null) {
-      return GestureDetector(
-        onTap: _capturePhoto,
-        child: Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: isDark ? DarkColors.surface : AppColors.grey50,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppColors.forestGreen.withValues(alpha: 0.4),
-              width: 1.5,
-              style: BorderStyle.solid,
-            ),
+      return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isDark ? DarkColors.surface : AppColors.grey50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppColors.forestGreen.withValues(alpha: 0.35),
+            width: 1.5,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(LucideIcons.camera,
-                  size: 40, color: AppColors.forestGreen),
-              const SizedBox(height: 12),
-              Text(
-                'Tocar para fotografar o resíduo',
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white70 : AppColors.grey800,
-                ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.forestGreen.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
               ),
-            ],
-          ),
+              child: const Icon(LucideIcons.camera,
+                  size: 32, color: AppColors.forestGreen),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Fotografia do Resíduo',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : AppColors.grey900,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Capture uma foto ou escolha uma imagem da galeria com o resíduo a denunciar',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12,
+                color: isDark ? Colors.white60 : AppColors.grey600,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.camera),
+                    icon: const Icon(LucideIcons.camera, size: 16),
+                    label: const Text('Câmara',
+                        style: TextStyle(
+                            fontFamily: 'Geist',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.forestGreen,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _pickImage(ImageSource.gallery),
+                    icon: const Icon(LucideIcons.image, size: 16),
+                    label: const Text('Galeria',
+                        style: TextStyle(
+                            fontFamily: 'Geist',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.forestGreen,
+                      side: const BorderSide(color: AppColors.forestGreen, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       );
     }
@@ -784,11 +1057,11 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
           right: 10,
           bottom: 10,
           child: Material(
-            color: Colors.black.withValues(alpha: 0.55),
+            color: Colors.black.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: _capturePhoto,
+              onTap: () => _showImageSourcePicker(isDark),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: Row(
@@ -796,11 +1069,12 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
                   children: [
                     Icon(LucideIcons.refreshCw, size: 14, color: Colors.white),
                     SizedBox(width: 6),
-                    Text('Repetir',
+                    Text('Alterar foto',
                         style: TextStyle(
                             fontFamily: 'Geist',
                             fontSize: 12,
-                            color: Colors.white)),
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
@@ -827,12 +1101,16 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     } else if (_location != null && !_locationInsideBeira) {
       color = AppColors.error;
       icon = LucideIcons.mapPinOff;
-      text = 'Localização fora da área da Beira. Não é possível denunciar aqui.';
+      text = _isLocationFromExif
+          ? 'Foto selecionada possui localização EXIF fora da Beira. Não é possível denunciar aqui.'
+          : 'Localização fora da área da Beira. Não é possível denunciar aqui.';
     } else if (_location != null) {
       color = AppColors.success;
-      icon = LucideIcons.mapPin;
+      icon = _isLocationFromExif ? LucideIcons.image : LucideIcons.mapPin;
       final accStr = _locationAccuracy != null ? ' (Precisão: ±${_locationAccuracy!.toStringAsFixed(1)}m)' : '';
-      text = 'Localização confirmada na Beira$accStr.';
+      text = _isLocationFromExif
+          ? 'Localização confirmada via metadados da foto (EXIF na Beira).'
+          : 'Localização confirmada na Beira$accStr.';
     } else {
       color = AppColors.grey600;
       icon = LucideIcons.mapPin;
@@ -861,11 +1139,13 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
               ),
             ),
           ),
-          if (_locationError != null || (_location != null && !_locationInsideBeira))
+          if (_locationError != null || (_location != null && !_locationInsideBeira) || _isLocationFromExif)
             TextButton(
               onPressed: _resolveLocation,
-              child: const Text('Tentar',
-                  style: TextStyle(fontFamily: 'Geist', fontSize: 12)),
+              child: Text(
+                _isLocationFromExif ? 'Usar GPS' : 'Tentar',
+                style: const TextStyle(fontFamily: 'Geist', fontSize: 12),
+              ),
             ),
         ],
       ),
