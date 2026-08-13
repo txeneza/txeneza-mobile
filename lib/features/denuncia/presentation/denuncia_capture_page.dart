@@ -406,13 +406,18 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return Material(
-      color: isDark ? AppColors.grey800 : AppColors.grey50,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(
-        color: isDark ? Colors.white12 : AppColors.grey200,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.grey800 : AppColors.grey50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.white12 : AppColors.grey200,
+        ),
       ),
-      child: InkWell(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
