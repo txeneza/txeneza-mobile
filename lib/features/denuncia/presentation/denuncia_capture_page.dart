@@ -457,6 +457,7 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
           ),
         ),
       ),
+      ),
     );
   }
 
