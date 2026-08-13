@@ -418,42 +418,43 @@ class _DenunciaCapturePageState extends State<DenunciaCapturePage> {
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.forestGreen.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.forestGreen.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: AppColors.forestGreen, size: 22),
                 ),
-                child: Icon(icon, color: AppColors.forestGreen, size: 22),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.white : AppColors.grey900,
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.grey900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontFamily: 'Geist',
-                  fontSize: 11,
-                  color: isDark ? Colors.white60 : AppColors.grey600,
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 11,
+                    color: isDark ? Colors.white60 : AppColors.grey600,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
