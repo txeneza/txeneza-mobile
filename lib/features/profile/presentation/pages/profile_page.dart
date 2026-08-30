@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/routes/app_routes.dart';
+import '../../../../core/network/cache_manager.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
@@ -55,6 +56,10 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirm != true || !mounted) return;
 
     try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        await CacheManager.instance.clearUserCache(userId);
+      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('is_logged_in', false);
       await Supabase.instance.client.auth.signOut();

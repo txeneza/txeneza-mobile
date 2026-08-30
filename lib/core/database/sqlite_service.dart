@@ -287,6 +287,24 @@ class SqliteService {
     }
   }
 
+  Future<Map<String, dynamic>?> getOcorrenciaById(String idOcorrencia) async {
+    try {
+      final db = await database;
+      final results = await db.query(
+        'ocorrencias',
+        where: 'id_ocorrencia = ?',
+        whereArgs: [idOcorrencia],
+        limit: 1,
+      );
+      if (results.isNotEmpty) {
+        return results.first;
+      }
+    } catch (e) {
+      debugPrint('Erro ao ler ocorrencia por ID do SQLite: $e');
+    }
+    return null;
+  }
+
   // ==========================================
   // --- 3. PONTOS DE RECOLHA ---
   // ==========================================

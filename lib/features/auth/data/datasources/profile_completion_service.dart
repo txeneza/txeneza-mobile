@@ -1,5 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/constants/beira_neighborhoods.dart';
+import '../../../../core/database/sqlite_service.dart';
+import '../../../../core/network/cache_manager.dart';
+import '../../../sync/data/sync_queue_service.dart';
 
 /// Valor gravado pelo trigger `handle_new_user` quando a conta é criada sem
 /// metadado de bairro — o caso típico do login com Google, que não pede bairro.
@@ -10,18 +14,33 @@ class ProfileCompletionService {
   SupabaseClient get _client => Supabase.instance.client;
 
   /// Um bairro só é válido se constar da lista real de bairros da Beira.
-  /// Assim cobrimos tanto o 'Não definido' do trigger como qualquer valor
-  /// antigo/inválido que tenha ficado na base de dados.
   static bool isBairroValido(String? bairro) =>
       bairro != null && BeiraNeighborhoods.list.contains(bairro);
 
   /// True quando há sessão activa mas o perfil ainda não tem um bairro real.
-  /// Em caso de erro de rede devolve false: mais vale deixar entrar do que
-  /// prender o utilizador num ecrã de perfil por causa de uma falha temporária.
+  /// Avalia primeiro a cache L1/L2 local instantaneamente.
   Future<bool> needsCompletion() async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
 
+    // 1. Verificação L1 Rápida (Hive)
+    final hiveKey = 'profile_fast_${user.id}';
+    final fastMap = CacheManager.instance.getFast<Map>(hiveKey);
+    if (fastMap != null) {
+      final bairro = fastMap['bairro'] as String?;
+      if (isBairroValido(bairro)) return false;
+    }
+
+    // 2. Verificação L2 (SQLite)
+    try {
+      final localRow = await SqliteService.instance.getPerfil(user.id);
+      if (localRow != null) {
+        final bairro = localRow['bairro'] as String?;
+        if (isBairroValido(bairro)) return false;
+      }
+    } catch (_) {}
+
+    // 3. Fallback Remoto L3 (Supabase)
     try {
       final row = await _client
           .from('utilizador')
@@ -55,11 +74,41 @@ class ProfileCompletionService {
         user.email?.split('@').first ??
         'Utilizador') as String;
 
-    await _client.from('utilizador').update({
+    final updateData = {
       'nome': name,
       'email': user.email ?? '',
       'bairro': bairro,
       if (telefone != null && telefone.isNotEmpty) 'telefone': telefone,
-    }).eq('id_utilizador', user.id);
+    };
+
+    // 1. Atualização L1 (Hive)
+    final hiveKey = 'profile_fast_${user.id}';
+    final currentFast = CacheManager.instance.getFast<Map>(hiveKey) ?? {};
+    final updatedMap = Map<String, dynamic>.from(currentFast)..addAll(updateData);
+    await CacheManager.instance.putFast(hiveKey, updatedMap);
+
+    // 2. Atualização L2 (SQLite)
+    try {
+      await SqliteService.instance.savePerfil({
+        'id_utilizador': user.id,
+        ...updateData,
+      });
+    } catch (e) {
+      debugPrint('Erro ao guardar perfil localmente no SQLite: $e');
+    }
+
+    // 3. Atualização L3 (Supabase) com enfileiramento offline
+    try {
+      await _client
+          .from('utilizador')
+          .update(updateData)
+          .eq('id_utilizador', user.id);
+    } catch (e) {
+      debugPrint('Rede indisponível ao atualizar perfil. Enfileirando offline: $e');
+      await SyncQueueService.instance.enqueuePerfil(
+        userId: user.id,
+        dados: updateData,
+      );
+    }
   }
 }

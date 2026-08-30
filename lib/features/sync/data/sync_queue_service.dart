@@ -12,6 +12,7 @@ enum SyncOperationType {
   contestacao,
   notificacaoLida,
   perfil,
+  fcmToken,
 }
 
 /// Serviço de Fila de Sincronização Unificada baseado em SQLite (L2).
@@ -35,6 +36,33 @@ class SyncQueueService {
       tipoOperacao: SyncOperationType.denuncia.name,
       payloadJson: jsonEncode(draft.toJson()),
       filePath: imagePath,
+    );
+  }
+
+  /// Enfileira atualização de perfil offline
+  Future<void> enqueuePerfil({
+    required String userId,
+    required Map<String, dynamic> dados,
+  }) async {
+    await _sqlite.enqueueSyncItem(
+      idItem: 'perfil_$userId',
+      tipoOperacao: SyncOperationType.perfil.name,
+      payloadJson: jsonEncode({
+        'id_utilizador': userId,
+        'dados': dados,
+      }),
+    );
+  }
+
+  /// Enfileira atualização de token FCM offline
+  Future<void> enqueueFcmToken(String userId, String token) async {
+    await _sqlite.enqueueSyncItem(
+      idItem: 'fcm_$userId',
+      tipoOperacao: SyncOperationType.fcmToken.name,
+      payloadJson: jsonEncode({
+        'id_utilizador': userId,
+        'fcm_token': token,
+      }),
     );
   }
 
@@ -166,6 +194,15 @@ class SyncQueueService {
           await _client
               .from('utilizador')
               .update(dados)
+              .eq('id_utilizador', userId);
+        } else if (tipo == SyncOperationType.fcmToken.name) {
+          final map = jsonDecode(payloadJson) as Map<String, dynamic>;
+          final userId = map['id_utilizador'] as String;
+          final token = map['fcm_token'] as String;
+
+          await _client
+              .from('utilizador')
+              .update({'fcm_token': token})
               .eq('id_utilizador', userId);
         }
 

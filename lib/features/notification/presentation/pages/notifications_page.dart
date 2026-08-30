@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/database/sqlite_service.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/utils/date_utils.dart';
@@ -82,6 +83,45 @@ class _NotificationsPageState extends State<NotificationsPage> {
     // só para marcar como lida, sem navegação.
     if (notif.idOcorrencia == null || !mounted) return;
 
+    // 1. Tenta carregar do SQLite L2 local (0ms / offline-first)
+    try {
+      final localRow = await SqliteService.instance.getOcorrenciaById(notif.idOcorrencia!);
+      if (localRow != null && mounted) {
+        final report = MyReport(
+          id: localRow['id_ocorrencia'] as String,
+          photoUrl: localRow['photo_url'] as String?,
+          categoria: localRow['nome_categoria'] as String? ?? 'Resíduo',
+          descricao: (localRow['descricao'] as String?)?.trim() ?? 'Ocorrência de resíduo reportada.',
+          latitude: double.tryParse(localRow['latitude'].toString()) ?? 0,
+          longitude: double.tryParse(localRow['longitude'].toString()) ?? 0,
+          estado: localRow['estado'] as String? ?? 'pendente',
+          gravidade: localRow['gravidade'] as String? ?? 'media',
+          dataHora: parseUtcDateTime(localRow['data_hora_registo']),
+        );
+
+        if (report.estado == 'resolvida') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ResolucaoVerificationPage(
+                occurrenceId: report.id,
+                occurrenceTitle: report.descricao,
+              ),
+            ),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReportDetailPage(report: report),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Fallback de leitura local de ocorrência: $e');
+    }
+
+    // 2. Fallback remoto L3 (Supabase) se ainda não existir no SQLite local
     try {
       final client = Supabase.instance.client;
       final row = await client

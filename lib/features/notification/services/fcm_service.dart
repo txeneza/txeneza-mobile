@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../sync/data/sync_queue_service.dart';
 import 'local_notification_service.dart';
 
 /// Handler de mensagens FCM recebidas com o app em segundo plano ou
@@ -117,7 +118,8 @@ class FCMService {
           .update({'fcm_token': token})
           .eq('id_utilizador', userId);
     } catch (e) {
-      debugPrint('Falha ao gravar token FCM no Supabase: $e');
+      debugPrint('Falha ao gravar token FCM no Supabase. Enfileirando offline: $e');
+      await SyncQueueService.instance.enqueueFcmToken(userId, token);
     }
   }
 
