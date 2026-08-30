@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'app.dart';
 import 'core/config/env/app_env.dart';
+import 'core/network/cache_manager.dart';
 import 'features/notification/services/local_notification_service.dart';
 import 'features/notification/services/fcm_service.dart';
 
@@ -33,6 +34,8 @@ void main() async {
     // A chave fornecida é uma publishable key (sb_publishable_...).
     publishableKey: AppEnv.supabaseAnonKey,
   );
+
+  await CacheManager.instance.init();
 
   await themeProvider.init();
 

@@ -1,61 +1,67 @@
-import 'dart:convert';
-
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/sqlite_service.dart';
+import '../../../core/network/cache_manager.dart';
 import '../domain/categoria.dart';
 
-/// Lê as categorias de resíduo (leitura pública, ver migração 0005).
-///
-/// Guarda a última lista em `shared_preferences` para que o formulário de
-/// denúncia funcione offline, desde que tenha carregado uma vez com rede.
+/// Lê as categorias de resíduo com suporte a SWR (Hive + SQLite + Supabase).
 class CategoriaDataSource {
-  static const String _prefsKey = 'categorias_cache';
+  static const String _hiveKey = 'categorias_fast_list';
 
   SupabaseClient get _client => Supabase.instance.client;
 
   List<Categoria>? _memoryCache;
 
-  /// Devolve as categorias. Tenta a rede; se falhar, usa a cache local.
+  /// Devolve as categorias usando a estratégia SWR:
+  /// 1. Retorna instantaneamente a cache do Hive/SQLite.
+  /// 2. Atualiza a partir do Supabase em background se disponível.
   Future<List<Categoria>> fetchAll({bool forceRefresh = false}) async {
     if (_memoryCache != null && !forceRefresh) return _memoryCache!;
 
-    try {
-      final rows = await _client
-          .from('categoria_residuo')
-          .select('id_categoria, nome, icone')
-          .order('nome');
+    final result = await CacheManager.instance.executeSWR<Categoria>(
+      loadFromLocal: () async {
+        // Tenta primeiro Hive (fast key-value)
+        final fastList = CacheManager.instance.getFast<List>(_hiveKey);
+        if (fastList != null && fastList.isNotEmpty) {
+          return fastList
+              .map((item) => Categoria.fromJson(Map<String, dynamic>.from(item)))
+              .toList();
+        }
 
-      final list = (rows as List)
-          .map((r) => Categoria.fromJson(r as Map<String, dynamic>))
-          .toList();
+        // Caso não esteja na Hive, lê do SQLite
+        final sqliteRows = await SqliteService.instance.getCategorias();
+        if (sqliteRows.isNotEmpty) {
+          return sqliteRows.map((r) => Categoria.fromJson(r)).toList();
+        }
 
-      _memoryCache = list;
-      await _persist(rows.cast<Map<String, dynamic>>());
-      return list;
-    } catch (e) {
-      final cached = await _loadFromCache();
-      if (cached.isNotEmpty) {
-        _memoryCache = cached;
-        return cached;
-      }
-      // Fallback para as categorias padrão se estiver offline sem cache prévia.
-      _memoryCache = Categoria.defaultOfflineCategorias;
-      return Categoria.defaultOfflineCategorias;
-    }
-  }
+        return Categoria.defaultOfflineCategorias;
+      },
+      fetchFromRemote: () async {
+        final rows = await _client
+            .from('categoria_residuo')
+            .select('id_categoria, nome, icone')
+            .order('nome');
 
-  Future<void> _persist(List<Map<String, dynamic>> rows) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(rows));
-  }
+        return (rows as List)
+            .map((r) => Categoria.fromJson(r as Map<String, dynamic>))
+            .toList();
+      },
+      saveToLocal: (freshList) async {
+        _memoryCache = freshList;
+        final maps = freshList
+            .map((c) => {
+                  'id_categoria': c.id,
+                  'nome': c.nome,
+                  'icone': c.icone,
+                })
+            .toList();
 
-  Future<List<Categoria>> _loadFromCache() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_prefsKey);
-    if (raw == null) return [];
-    final decoded = jsonDecode(raw) as List;
-    return decoded
-        .map((r) => Categoria.fromJson(r as Map<String, dynamic>))
-        .toList();
+        // Salva tanto no SQLite (relacional) como no Hive (fast lookup)
+        await SqliteService.instance.saveCategorias(maps);
+        await CacheManager.instance.putFast(_hiveKey, maps);
+      },
+    );
+
+    _memoryCache = result.isNotEmpty ? result : Categoria.defaultOfflineCategorias;
+    return _memoryCache!;
   }
 }

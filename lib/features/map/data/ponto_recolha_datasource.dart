@@ -1,52 +1,63 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/sqlite_service.dart';
+import '../../../core/network/cache_manager.dart';
 import '../domain/ponto_recolha_model.dart';
 
-/// Lê os pontos de recolha criados pelos administradores no painel web.
-/// A app móvel nunca escreve nesta tabela.
+/// Lê os pontos de recolha com suporte a SWR (Hive + SQLite + Supabase).
 class PontoRecolhaDataSource {
-  static const String _cacheKey = 'pontos_recolha_cache';
+  static const String _hiveKey = 'pontos_recolha_fast_list';
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Devolve apenas os pontos activos — os inactivos foram desligados pelo
-  /// admin e não devem aparecer no mapa. Se a chamada falhar por falta de
-  /// internet, carrega do cache local.
+  /// Devolve os pontos de recolha ativos via SWR:
+  /// 1. Exibe instantaneamente os dados locais do Hive/SQLite.
+  /// 2. Atualiza em segundo plano através do Supabase.
   Future<List<PontoRecolha>> fetchActivos() async {
-    try {
-      final rows = await _client
-          .from('ponto_recolha')
-          .select('id_ponto, nome, latitude, longitude, bairro, horario')
-          .eq('estado', 'activo')
-          .order('nome');
-
-      // Salva no cache local de forma assíncrona
-      SharedPreferences.getInstance().then((prefs) {
-        prefs.setString(_cacheKey, jsonEncode(rows));
-      }).catchError((e) {
-        debugPrint('Erro ao guardar cache de pontos de recolha: $e');
-      });
-
-      return (rows as List)
-          .map((row) => PontoRecolha.fromJson(row as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Falha ao carregar pontos de recolha do Supabase ($e). A carregar cache local...');
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final raw = prefs.getString(_cacheKey);
-        if (raw != null) {
-          final decoded = await compute(jsonDecode, raw) as List;
-          return decoded
-              .map((row) => PontoRecolha.fromJson(row as Map<String, dynamic>))
+    return await CacheManager.instance.executeSWR<PontoRecolha>(
+      loadFromLocal: () async {
+        // Tenta primeiro Hive
+        final fastList = CacheManager.instance.getFast<List>(_hiveKey);
+        if (fastList != null && fastList.isNotEmpty) {
+          return fastList
+              .map((item) =>
+                  PontoRecolha.fromJson(Map<String, dynamic>.from(item)))
               .toList();
         }
-      } catch (cacheErr) {
-        debugPrint('Erro ao carregar cache de pontos de recolha: $cacheErr');
-      }
-      return [];
-    }
+
+        // De seguida tenta SQLite
+        final sqliteRows = await SqliteService.instance.getPontosRecolha();
+        if (sqliteRows.isNotEmpty) {
+          return sqliteRows.map((row) => PontoRecolha.fromJson(row)).toList();
+        }
+
+        return [];
+      },
+      fetchFromRemote: () async {
+        final rows = await _client
+            .from('ponto_recolha')
+            .select('id_ponto, nome, latitude, longitude, bairro, horario')
+            .eq('estado', 'activo')
+            .order('nome');
+
+        return (rows as List)
+            .map((row) => PontoRecolha.fromJson(row as Map<String, dynamic>))
+            .toList();
+      },
+      saveToLocal: (freshList) async {
+        final maps = freshList
+            .map((p) => {
+                  'id_ponto': p.id,
+                  'nome': p.nome,
+                  'latitude': p.position.latitude,
+                  'longitude': p.position.longitude,
+                  'bairro': p.bairro,
+                  'horario': p.horario,
+                })
+            .toList();
+
+        await SqliteService.instance.savePontosRecolha(maps);
+        await CacheManager.instance.putFast(_hiveKey, maps);
+      },
+    );
   }
 }
