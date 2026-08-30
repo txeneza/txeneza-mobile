@@ -9,33 +9,27 @@ import 'package:latlong2/latlong.dart';
 class BeiraGeo {
   BeiraGeo._();
 
-  // Bounding box aproximado da cidade da Beira (canto SO e NE).
-  static const double _minLat = -19.90;
-  static const double _maxLat = -19.74;
-  static const double _minLng = 34.79;
-  static const double _maxLng = 34.92;
+  // Bounding box da cidade da Beira cobrindo todos os 31 bairros oficiais.
+  static const double _minLat = -19.92;
+  static const double _maxLat = -19.68;
+  static const double _minLng = 34.76;
+  static const double _maxLng = 34.96;
 
   /// Centro aproximado da Beira, usado como fallback quando não há GPS.
   static const LatLng center = LatLng(-19.833, 34.850);
 
-  /// Polígono APROXIMADO da fronteira da cidade da Beira, no sentido horário.
-  ///
-  /// NÃO é a fronteira administrativa oficial — é um contorno grosseiro traçado
-  /// a partir da extensão conhecida da cidade, suficiente para filtrar denúncias
-  /// fora da área. Substituir pelos vértices do GeoJSON oficial quando disponível
-  /// (o algoritmo [_pointInPolygon] funciona com qualquer polígono).
+  /// Polígono abrangente da cidade da Beira (sentido horário).
   static const List<LatLng> polygon = [
-    LatLng(-19.745, 34.840), // norte (Munhava/Inhamízua)
-    LatLng(-19.760, 34.885),
-    LatLng(-19.790, 34.905),
-    LatLng(-19.825, 34.910), // leste (orla, Macúti)
-    LatLng(-19.855, 34.900),
-    LatLng(-19.885, 34.870), // sul (foz, Praia Nova)
-    LatLng(-19.890, 34.835),
-    LatLng(-19.870, 34.805),
-    LatLng(-19.830, 34.795), // oeste (Chota/Manga)
-    LatLng(-19.790, 34.800),
-    LatLng(-19.760, 34.815),
+    LatLng(-19.680, 34.880), // norte (Nhangau / Nhangoma)
+    LatLng(-19.720, 34.930), // nordeste
+    LatLng(-19.760, 34.930),
+    LatLng(-19.825, 34.920), // leste (Macuti / Estoril)
+    LatLng(-19.855, 34.910),
+    LatLng(-19.890, 34.880), // sul (Ponta Gêa / Porto)
+    LatLng(-19.895, 34.835),
+    LatLng(-19.870, 34.800),
+    LatLng(-19.820, 34.780), // oeste
+    LatLng(-19.740, 34.785), // noroeste (Muave / Chingussura)
   ];
 
   static bool isInsideBoundingBox(LatLng p) {

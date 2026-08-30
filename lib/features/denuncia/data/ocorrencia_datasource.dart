@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/constants/beira_neighborhoods.dart';
 import '../../../core/database/sqlite_service.dart';
 import '../../../core/network/cache_manager.dart';
 import 'categoria_datasource.dart';
@@ -58,6 +59,8 @@ class OcorrenciaDataSource {
         );
 
     final nowIso = DateTime.now().toUtc().toIso8601String();
+    final bairroCalculado =
+        BeiraNeighborhoods.findClosestBairro(draft.latitude, draft.longitude);
 
     // 2. Ocorrência na base de dados remota Supabase
     await _client.from('ocorrencia').upsert({
@@ -65,6 +68,7 @@ class OcorrenciaDataSource {
       'id_utilizador': userId,
       'id_categoria': realCategoryId,
       'descricao': draft.descricao,
+      'bairro': bairroCalculado,
       'latitude': draft.latitude,
       'longitude': draft.longitude,
       'gravidade': draft.gravidade.dbValue,
