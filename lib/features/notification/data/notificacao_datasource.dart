@@ -1,60 +1,83 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/sqlite_service.dart';
+import '../../../core/network/cache_manager.dart';
+import '../../sync/data/sync_queue_service.dart';
 import '../domain/notificacao_model.dart';
 import '../services/local_notification_service.dart';
 
 /// Lê as notificações do morador e marca-as como lidas.
-/// Suporta cache local (SharedPreferences) para funcionamento offline.
+/// Implementa a Arquitetura Híbrida: Hive (L1 contador) + SQLite (L2 lista/filtros) + Supabase (L3 nuvem).
 class NotificacaoDataSource {
-  static const String _prefsKeyPrefix = 'notificacoes_cache_';
-
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Lê as notificações do utilizador autenticado, da mais recente para a
-  /// mais antiga. Se a leitura de rede falhar (ex: offline), carrega da cache local.
+  /// Lê as notificações do utilizador autenticado usando a estratégia SWR:
+  /// 1. Exibe instantaneamente as notificações salvas no SQLite L2.
+  /// 2. Sincroniza em segundo plano com o Supabase.
   Future<List<NotificacaoModel>> fetchNotificacoes() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
-    try {
-      final rows = await _client
-          .from('notificacao')
-          .select('*')
-          .eq('id_utilizador', userId)
-          .order('data_hora', ascending: false);
+    final unreadHiveKey = 'unread_notif_count_$userId';
 
-      final list = (rows as List)
-          .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
-          .toList();
+    return await CacheManager.instance.executeSWR<NotificacaoModel>(
+      loadFromLocal: () async {
+        final rows = await SqliteService.instance.getNotificacoes(userId);
+        if (rows.isNotEmpty) {
+          return rows.map((r) => _mapSqliteToModel(r)).toList();
+        }
+        return [];
+      },
+      fetchFromRemote: () async {
+        final rows = await _client
+            .from('notificacao')
+            .select('*')
+            .eq('id_utilizador', userId)
+            .order('data_hora', ascending: false);
 
-      await _saveToCache(userId, list);
-      return list;
-    } catch (e) {
-      debugPrint('Rede indisponível para notificações ($e). A carregar cache local...');
-      return await _loadFromCache(userId);
-    }
+        return (rows as List)
+            .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
+            .toList();
+      },
+      saveToLocal: (freshList) async {
+        final rawMaps = freshList.map((n) {
+          return {
+            'id_notificacao': n.id,
+            'id_utilizador': userId,
+            'id_ocorrencia': n.idOcorrencia,
+            'tipo': n.tipo,
+            'mensagem': n.mensagem,
+            'lida': n.lida ? 1 : 0,
+            'data_hora': n.dataHora.toUtc().toIso8601String(),
+          };
+        }).toList();
+
+        await SqliteService.instance.saveNotificacoes(userId, rawMaps);
+        final unreadCount = freshList.where((n) => !n.lida).length;
+        await CacheManager.instance.putFast(unreadHiveKey, unreadCount);
+      },
+    );
   }
 
-  /// Marca uma notificação individual como lida.
+  /// Marca uma notificação individual como lida com atualização otimista local.
   Future<void> marcarComoLida(String idNotificacao) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    final cached = await _loadFromCache(userId);
-    final updatedList = cached.map((n) {
-      if (n.id == idNotificacao) {
-        return n.copyWith(lida: true);
-      }
-      return n;
-    }).toList();
-    await _saveToCache(userId, updatedList);
+    // 1. Atualização Otimista no SQLite L2
+    await SqliteService.instance.updateNotificacaoLida(idNotificacao, true);
 
-    if (!updatedList.any((n) => !n.lida)) {
+    // 2. Atualiza badge Hive L1
+    final unreadHiveKey = 'unread_notif_count_$userId';
+    final currentCount = CacheManager.instance.getFast<int>(unreadHiveKey) ?? 1;
+    final newCount = (currentCount > 0) ? currentCount - 1 : 0;
+    await CacheManager.instance.putFast(unreadHiveKey, newCount);
+
+    if (newCount == 0) {
       await LocalNotificationService.cancelAllNotifications();
     }
 
+    // 3. Atualização Remota ou Fila de Sincronização
     try {
       await _client
           .from('notificacao')
@@ -62,7 +85,11 @@ class NotificacaoDataSource {
           .eq('id_notificacao', idNotificacao)
           .eq('id_utilizador', userId);
     } catch (e) {
-      debugPrint('Erro ao marcar notificação como lida no Supabase: $e');
+      debugPrint('Offline/Erro ao marcar notificação como lida: $e. Enfileirando...');
+      await SyncQueueService.instance.enqueueNotificacaoLida(
+        idUtilizador: userId,
+        idNotificacao: idNotificacao,
+      );
     }
   }
 
@@ -71,12 +98,15 @@ class NotificacaoDataSource {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    final cached = await _loadFromCache(userId);
-    final updatedList = cached.map((n) => n.copyWith(lida: true)).toList();
-    await _saveToCache(userId, updatedList);
+    // 1. Atualização Otimista no SQLite L2
+    await SqliteService.instance.marcarTodasNotificacoesLidas(userId);
 
+    // 2. Zera o badge no Hive L1
+    final unreadHiveKey = 'unread_notif_count_$userId';
+    await CacheManager.instance.putFast(unreadHiveKey, 0);
     await LocalNotificationService.cancelAllNotifications();
 
+    // 3. Atualização Remota ou Fila de Sincronização
     try {
       await _client
           .from('notificacao')
@@ -84,44 +114,27 @@ class NotificacaoDataSource {
           .eq('id_utilizador', userId)
           .eq('lida', false);
     } catch (e) {
-      debugPrint('Erro ao marcar todas as notificações como lidas no Supabase: $e');
+      debugPrint('Offline/Erro ao marcar todas notificações: $e. Enfileirando...');
+      await SyncQueueService.instance.enqueueNotificacaoLida(
+        idUtilizador: userId,
+        marcarTodas: true,
+      );
     }
   }
 
-  Future<void> _saveToCache(String userId, List<NotificacaoModel> list) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final encoded = jsonEncode(list.map((n) => n.toJson()).toList());
-      await prefs.setString('$_prefsKeyPrefix$userId', encoded);
-    } catch (e) {
-      debugPrint('Erro ao gravar cache de notificações: $e');
-    }
+  NotificacaoModel _mapSqliteToModel(Map<String, dynamic> row) {
+    return NotificacaoModel(
+      id: row['id_notificacao'] as String,
+      idUtilizador: row['id_utilizador'] as String,
+      idOcorrencia: row['id_ocorrencia'] as String?,
+      tipo: row['tipo'] as String,
+      mensagem: row['mensagem'] as String,
+      lida: (row['lida'] == 1 || row['lida'] == true),
+      dataHora: DateTime.tryParse(row['data_hora'].toString()) ?? DateTime.now(),
+    );
   }
 
-  Future<List<NotificacaoModel>> _loadFromCache(String userId) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('$_prefsKeyPrefix$userId');
-      if (raw == null) return [];
-      final decoded = jsonDecode(raw) as List;
-      return decoded
-          .map((r) => NotificacaoModel.fromJson(r as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      debugPrint('Erro ao carregar cache de notificações: $e');
-      return [];
-    }
-  }
-
-  /// Subscreve alterações em tempo real na tabela "notificacao" para o
-  /// utilizador atual (INSERT de notificações novas e UPDATE de estado
-  /// lida/não lida). Chama [onChange] sempre que algo muda — o chamador
-  /// decide o que fazer (tipicamente: reler a contagem de não lidas).
-  ///
-  /// Devolve o canal para o chamador poder subscrever (é preciso chamar
-  /// `.subscribe()` antes de usar) e, principalmente, para poder ser
-  /// removido em dispose() com `_client.removeChannel(channel)` — sem
-  /// isso, o canal fica ligado mesmo depois do widget ser destruído.
+  /// Subscreve alterações em tempo real na tabela "notificacao" para o utilizador atual.
   RealtimeChannel subscribeToChanges({
     required String userId,
     required VoidCallback onChange,

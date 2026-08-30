@@ -3,7 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../database/sqlite_service.dart';
 
 /// Gestor unificado de Cache e Sincronização SWR (Stale-While-Revalidate).
-/// Combina Hive (NoSQL ultrarrápido em memória/disco) e SQLite (Relacional local).
+/// Combina Hive (NoSQL ultrarrápido L1 em memória/disco) e SQLite (Relacional L2 local).
 class CacheManager {
   static final CacheManager instance = CacheManager._internal();
   static const String appBoxName = 'txeneza_fast_cache';
@@ -25,7 +25,7 @@ class CacheManager {
     }
   }
 
-  // --- HIVE KEY-VALUE FAST ACCESS ---
+  // --- HIVE KEY-VALUE FAST ACCESS (L1) ---
 
   /// Escreve um valor rápido na cache Hive
   Future<void> putFast(String key, dynamic value) async {
@@ -50,9 +50,33 @@ class CacheManager {
     return null;
   }
 
+  /// Remove uma chave específica da cache rápida
+  Future<void> removeFast(String key) async {
+    try {
+      if (_fastBox != null && _fastBox!.containsKey(key)) {
+        await _fastBox!.delete(key);
+      }
+    } catch (e) {
+      debugPrint('Erro ao remover do Hive ($key): $e');
+    }
+  }
+
+  /// Limpa todas as caches rápidas do utilizador (ex: ao fazer logout)
+  Future<void> clearUserCache(String userId) async {
+    try {
+      await removeFast('profile_fast_$userId');
+      await removeFast('stats_fast_$userId');
+      await removeFast('ocorrencias_fast_$userId');
+      await removeFast('unread_notif_count_$userId');
+      await SqliteService.instance.clearUserData(userId);
+    } catch (e) {
+      debugPrint('Erro ao limpar cache do utilizador ($userId): $e');
+    }
+  }
+
   // --- STALE-WHILE-REVALIDATE PATTERN WRAPPER ---
 
-  /// Executa o padrão SWR:
+  /// Executa o padrão SWR para listas:
   /// 1. Tenta obter o resultado da cache local (Hive/SQLite) instantaneamente.
   /// 2. Executa a requisição remota (Supabase) em segundo plano.
   /// 3. Salva a resposta atualizada na cache local.
@@ -73,12 +97,36 @@ class CacheManager {
     // 2. Busca Remota e Atualização Silenciosa em Background
     try {
       final freshData = await fetchFromRemote();
-      if (freshData.isNotEmpty) {
+      if (freshData.isNotEmpty || localData.isNotEmpty) {
         await saveToLocal(freshData);
         return freshData;
       }
     } catch (e) {
       debugPrint('SWR remote fetch failed, usando cache local ($e)');
+    }
+
+    return localData;
+  }
+
+  /// Executa o padrão SWR para um item único (ex: Perfil, Verificação de Resolução)
+  Future<T?> executeSingleSWR<T>({
+    required Future<T?> Function() loadFromLocal,
+    required Future<T> Function() fetchFromRemote,
+    required Future<void> Function(T freshData) saveToLocal,
+  }) async {
+    T? localData;
+    try {
+      localData = await loadFromLocal();
+    } catch (e) {
+      debugPrint('Single SWR local load fallback: $e');
+    }
+
+    try {
+      final freshData = await fetchFromRemote();
+      await saveToLocal(freshData);
+      return freshData;
+    } catch (e) {
+      debugPrint('Single SWR remote fetch failed, usando cache local ($e)');
     }
 
     return localData;

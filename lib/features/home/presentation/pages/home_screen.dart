@@ -26,6 +26,7 @@ import '../../../notification/presentation/pages/notifications_page.dart';
 import '../../../notification/services/fcm_service.dart';
 import '../../../notification/services/local_notification_service.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
+import '../../../sync/data/sync_queue_service.dart';
 import '../../../sync/presentation/widgets/sync_queue_sheet.dart';
 import '../widgets/floating_bottom_navigation_bar.dart';
 
@@ -154,15 +155,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// Sincroniza denúncias em fila offline; se enviar alguma, recarrega o mapa.
+  /// Sincroniza denúncias e ações em fila offline; se enviar alguma, recarrega o mapa.
   Future<void> _flushQueue() async {
     try {
-      final initialCount = await _denunciaQueue.pendingCount();
+      final initialCount = (await _denunciaQueue.pendingCount()) +
+          (await SyncQueueService.instance.pendingCount());
       if (mounted) setState(() => _pendingCount = initialCount);
       if (!_isOnline) return;
 
       final enviadas = await _denunciaQueue.flush();
-      final remainingCount = await _denunciaQueue.pendingCount();
+      await SyncQueueService.instance.flush();
+
+      final remainingCount = (await _denunciaQueue.pendingCount()) +
+          (await SyncQueueService.instance.pendingCount());
       if (mounted) {
         setState(() => _pendingCount = remainingCount);
       }
@@ -170,7 +175,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         await _loadOccurrences();
       }
     } catch (e) {
-      debugPrint('Falha ao sincronizar fila de denúncias: $e');
+      debugPrint('Falha ao sincronizar fila de denúncias/ações: $e');
     }
   }
 

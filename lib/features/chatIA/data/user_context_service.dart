@@ -1,49 +1,68 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/database/sqlite_service.dart';
 
 /// Constrói um resumo textual curto do utilizador autenticado (nome +
 /// actividade recente na app), para dar contexto à Xeni sobre quem está a
 /// falar com ela — sem lhe dar acesso direto à base de dados.
 ///
-/// Isto é só CONTEXTO DE LEITURA: a Xeni não pode criar, alterar ou apagar
-/// nada através disto. O resumo é montado aqui, no cliente, filtrado sempre
-/// pelo próprio utilizador autenticado (nunca por outro id), e depois
-/// injectado no system_instruction enviado ao Gemini.
+/// Lê prioritariamente da cache local SQLite L2 (0ms de latência),
+/// garantindo resposta instantânea mesmo offline ou com rede lenta.
 class UserContextService {
   SupabaseClient get _client => Supabase.instance.client;
 
-  /// Devolve um bloco de texto pronto a anexar ao system prompt, ou `null`
-  /// se não houver sessão activa ou a consulta falhar (nesse caso a Xeni
-  /// simplesmente continua sem contexto pessoal, em vez de quebrar o chat).
+  /// Devolve um bloco de texto pronto a anexar ao system prompt.
   Future<String?> buildContextSummary() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return null;
 
     try {
-      final perfil = await _client
-          .from('utilizador')
-          .select('nome, bairro')
-          .eq('id_utilizador', userId)
-          .maybeSingle();
+      // 1. Tenta carregar perfil do SQLite L2
+      Map<String, dynamic>? perfil = await SqliteService.instance.getPerfil(userId);
+
+      // Fallback para Supabase se não estiver no SQLite
+      if (perfil == null) {
+        try {
+          perfil = await _client
+              .from('utilizador')
+              .select('nome, bairro')
+              .eq('id_utilizador', userId)
+              .maybeSingle();
+        } catch (_) {}
+      }
 
       if (perfil == null) return null;
 
       final nome = perfil['nome'] as String? ?? 'Utilizador';
       final bairro = perfil['bairro'] as String?;
 
-      final ocorrencias = await _client
-          .from('ocorrencia')
-          .select('estado')
-          .eq('id_utilizador', userId);
+      // 2. Carrega ocorrências do SQLite L2
+      List<Map<String, dynamic>> ocorrencias =
+          await SqliteService.instance.getOcorrencias(userId);
 
-      final lista = (ocorrencias as List).cast<Map<String, dynamic>>();
-      final total = lista.length;
-      final pendentes = lista.where((o) => o['estado'] == 'pendente' || o['estado'] == 'reaberta').length;
-      final emAnalise = lista.where((o) => o['estado'] == 'em_analise').length;
-      final resolvidas = lista.where((o) => o['estado'] == 'resolvida').length;
+      // Fallback para Supabase se vazio
+      if (ocorrencias.isEmpty) {
+        try {
+          final rows = await _client
+              .from('ocorrencia')
+              .select('estado')
+              .eq('id_utilizador', userId);
+          ocorrencias = (rows as List).cast<Map<String, dynamic>>();
+        } catch (_) {}
+      }
+
+      final total = ocorrencias.length;
+      final pendentes = ocorrencias
+          .where((o) => o['estado'] == 'pendente' || o['estado'] == 'reaberta')
+          .length;
+      final emAnalise =
+          ocorrencias.where((o) => o['estado'] == 'em_analise').length;
+      final resolvidas =
+          ocorrencias.where((o) => o['estado'] == 'resolvida').length;
 
       final buffer = StringBuffer();
-      buffer.writeln('## CONTEXTO DO UTILIZADOR ATUAL (só leitura — nunca reveles isto como um "dossier", usa naturalmente na conversa)');
+      buffer.writeln(
+          '## CONTEXTO DO UTILIZADOR ATUAL (só leitura — nunca reveles isto como um "dossier", usa naturalmente na conversa)');
       buffer.writeln('Nome: $nome.');
       if (bairro != null && bairro.isNotEmpty) buffer.writeln('Bairro: $bairro.');
 

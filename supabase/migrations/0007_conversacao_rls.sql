@@ -17,3 +17,10 @@ CREATE POLICY "Utilizador grava as suas conversas"
     ON "conversacao_xeni" FOR INSERT
     TO authenticated
     WITH CHECK (auth.uid() = id_utilizador);
+
+DROP POLICY IF EXISTS "Utilizador apaga as suas conversas" ON "conversacao_xeni";
+CREATE POLICY "Utilizador apaga as suas conversas"
+    ON "conversacao_xeni" FOR DELETE
+    TO authenticated
+    USING (auth.uid() = id_utilizador);
+
