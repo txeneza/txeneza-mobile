@@ -56,8 +56,8 @@ BEGIN
     -- Formata a gravidade
     gravidade_formatada := INITCAP(COALESCE(NEW.gravidade::text, 'normal'));
 
-    -- Mensagem amigável para os administradores
-    msg_texto := format('🚨 Nova denúncia de %s no bairro %s (Gravidade: %s)', cat_nome, municipe_bairro, gravidade_formatada);
+    -- Mensagem profissional sem emojis
+    msg_texto := format('Nova denúncia de %s no bairro %s (Gravidade: %s)', cat_nome, municipe_bairro, gravidade_formatada);
 
     -- Insere uma notificação para cada administrador activo no sistema
     FOR admin_rec IN
