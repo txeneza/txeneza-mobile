@@ -15,11 +15,7 @@ import '../../domain/notificacao_model.dart';
 import '../../services/local_notification_service.dart';
 import '../widgets/notification_tile.dart';
 
-/// Ecrã de centro de notificações do morador.
-///
-/// Só lê e marca como lida — nunca cria notificações (isso é sempre feito
-/// pelo backend web). Se a leitura falhar (sem rede, RLS mal configurado,
-/// etc.), mostra um estado vazio/discreto em vez de quebrar o ecrã.
+/// Ecrã de centro de notificações do morador com suporte a SWR e Realtime.
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
 
@@ -32,18 +28,42 @@ class _NotificationsPageState extends State<NotificationsPage> {
   List<NotificacaoModel> _notificacoes = [];
   bool _isLoading = true;
   bool _hasError = false;
+  RealtimeChannel? _realtimeChannel;
 
   @override
   void initState() {
     super.initState();
     _loadNotificacoes();
+    _subscribeToRealtime();
   }
 
-  Future<void> _loadNotificacoes() async {
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _subscribeToRealtime() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _realtimeChannel = _dataSource.subscribeToChanges(
+      userId: userId,
+      onChange: () {
+        if (mounted) {
+          _loadNotificacoes(silently: true);
+        }
+      },
+    )..subscribe();
+  }
+
+  Future<void> _loadNotificacoes({bool silently = false}) async {
+    if (!silently) {
+      setState(() {
+        _isLoading = true;
+        _hasError = false;
+      });
+    }
 
     try {
       final items = await _dataSource.fetchNotificacoes();
@@ -56,12 +76,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
         await LocalNotificationService.cancelAllNotifications();
       }
     } catch (e) {
-      // fetchNotificacoes() já trata os próprios erros e devolve lista
-      // vazia; este catch é só uma rede de segurança adicional para nunca
-      // deixar o ecrã quebrar.
       if (!mounted) return;
       setState(() {
-        _notificacoes = [];
         _isLoading = false;
         _hasError = true;
       });
@@ -70,8 +86,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Future<void> _onTapNotificacao(NotificacaoModel notif) async {
     if (!notif.lida) {
-      // Actualização optimista: marca como lida no ecrã já, e só depois
-      // confirma no servidor — sente-se instantâneo mesmo com rede lenta.
       setState(() {
         final idx = _notificacoes.indexWhere((n) => n.id == notif.id);
         if (idx != -1) _notificacoes[idx] = notif.copyWith(lida: true);
@@ -79,8 +93,6 @@ class _NotificationsPageState extends State<NotificationsPage> {
       unawaited(_dataSource.marcarComoLida(notif.id));
     }
 
-    // Notificação sem ocorrência associada (ex: aviso geral): fica clicável
-    // só para marcar como lida, sem navegação.
     if (notif.idOcorrencia == null || !mounted) return;
 
     // 1. Tenta carregar do SQLite L2 local (0ms / offline-first)
@@ -121,7 +133,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       debugPrint('Fallback de leitura local de ocorrência: $e');
     }
 
-    // 2. Fallback remoto L3 (Supabase) se ainda não existir no SQLite local
+    // 2. Fallback remoto L3 (Supabase)
     try {
       final client = Supabase.instance.client;
       final row = await client
@@ -226,6 +238,13 @@ class _NotificationsPageState extends State<NotificationsPage> {
     await _dataSource.marcarTodasComoLidas();
   }
 
+  Future<void> _onDeleteNotificacao(String id) async {
+    setState(() {
+      _notificacoes.removeWhere((n) => n.id == id);
+    });
+    await _dataSource.eliminarNotificacao(id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -276,7 +295,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       if (_hasError)
                         _buildErrorBanner(isDark),
                       if (naoLidas.isNotEmpty) ...[
-                        _buildSectionHeader('Não lidas', isDark),
+                        _buildSectionHeader('Não lidas (${naoLidas.length})', isDark),
                         ...naoLidas.map(
                           (n) => Padding(
                             padding: const EdgeInsets.only(bottom: 4),
@@ -284,6 +303,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               notificacao: n,
                               isDark: isDark,
                               onTap: () => _onTapNotificacao(n),
+                              onDelete: () => _onDeleteNotificacao(n.id),
                             ),
                           ),
                         ),
@@ -298,6 +318,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               notificacao: n,
                               isDark: isDark,
                               onTap: () => _onTapNotificacao(n),
+                              onDelete: () => _onDeleteNotificacao(n.id),
                             ),
                           ),
                         ),

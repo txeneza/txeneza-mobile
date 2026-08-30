@@ -7,21 +7,32 @@ import '../domain/notificacao_model.dart';
 import '../services/local_notification_service.dart';
 
 /// Lê as notificações do morador e marca-as como lidas.
-/// Implementa a Arquitetura Híbrida: Hive (L1 contador) + SQLite (L2 lista/filtros) + Supabase (L3 nuvem).
+/// Implementa a Arquitetura Híbrida: Hive (L1 Memória Rápida 0ms) + SQLite (L2 Relacional Offline) + Supabase (L3 Nuvem & Realtime).
 class NotificacaoDataSource {
   SupabaseClient get _client => Supabase.instance.client;
 
   /// Lê as notificações do utilizador autenticado usando a estratégia SWR:
-  /// 1. Exibe instantaneamente as notificações salvas no SQLite L2.
-  /// 2. Sincroniza em segundo plano com o Supabase.
+  /// 1. Exibe instantaneamente (0ms) a cache de memória Hive L1.
+  /// 2. Se a cache estiver fria, busca no SQLite L2 offline.
+  /// 3. Sincroniza em segundo plano com o Supabase L3 e atualiza L1 e L2.
   Future<List<NotificacaoModel>> fetchNotificacoes() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
     final unreadHiveKey = 'unread_notif_count_$userId';
+    final hiveKey = 'notificacoes_fast_$userId';
 
     return await CacheManager.instance.executeSWR<NotificacaoModel>(
       loadFromLocal: () async {
+        // 1. Tenta memória ultrarrápida Hive L1 (0ms)
+        final fastList = CacheManager.instance.getFast<List>(hiveKey);
+        if (fastList != null && fastList.isNotEmpty) {
+          return fastList
+              .map((r) => _mapSqliteToModel(Map<String, dynamic>.from(r)))
+              .toList();
+        }
+
+        // 2. Tenta armazenamento persistente SQLite L2
         final rows = await SqliteService.instance.getNotificacoes(userId);
         if (rows.isNotEmpty) {
           return rows.map((r) => _mapSqliteToModel(r)).toList();
@@ -52,23 +63,40 @@ class NotificacaoDataSource {
           };
         }).toList();
 
+        // Grava no SQLite L2 e no Hive L1 para aceleração instantânea
         await SqliteService.instance.saveNotificacoes(userId, rawMaps);
+        await CacheManager.instance.putFast(hiveKey, rawMaps);
+
         final unreadCount = freshList.where((n) => !n.lida).length;
         await CacheManager.instance.putFast(unreadHiveKey, unreadCount);
       },
     );
   }
 
-  /// Marca uma notificação individual como lida com atualização otimista local.
+  /// Marca uma notificação individual como lida com atualização otimista local (Hive L1 + SQLite L2).
   Future<void> marcarComoLida(String idNotificacao) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    // 1. Atualização Otimista no SQLite L2
+    // 1. Atualização no SQLite L2
     await SqliteService.instance.updateNotificacaoLida(idNotificacao, true);
 
-    // 2. Atualiza badge Hive L1
+    // 2. Atualização no Hive L1
+    final hiveKey = 'notificacoes_fast_$userId';
     final unreadHiveKey = 'unread_notif_count_$userId';
+
+    final fastList = CacheManager.instance.getFast<List>(hiveKey);
+    if (fastList != null) {
+      final updatedList = fastList.map((r) {
+        final map = Map<String, dynamic>.from(r);
+        if (map['id_notificacao'] == idNotificacao) {
+          map['lida'] = 1;
+        }
+        return map;
+      }).toList();
+      await CacheManager.instance.putFast(hiveKey, updatedList);
+    }
+
     final currentCount = CacheManager.instance.getFast<int>(unreadHiveKey) ?? 1;
     final newCount = (currentCount > 0) ? currentCount - 1 : 0;
     await CacheManager.instance.putFast(unreadHiveKey, newCount);
@@ -77,7 +105,7 @@ class NotificacaoDataSource {
       await LocalNotificationService.cancelAllNotifications();
     }
 
-    // 3. Atualização Remota ou Fila de Sincronização
+    // 3. Atualização Remota ou Fila de Sincronização L3
     try {
       await _client
           .from('notificacao')
@@ -98,11 +126,23 @@ class NotificacaoDataSource {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return;
 
-    // 1. Atualização Otimista no SQLite L2
+    // 1. Atualização no SQLite L2
     await SqliteService.instance.marcarTodasNotificacoesLidas(userId);
 
-    // 2. Zera o badge no Hive L1
+    // 2. Atualização no Hive L1
+    final hiveKey = 'notificacoes_fast_$userId';
     final unreadHiveKey = 'unread_notif_count_$userId';
+
+    final fastList = CacheManager.instance.getFast<List>(hiveKey);
+    if (fastList != null) {
+      final updatedList = fastList.map((r) {
+        final map = Map<String, dynamic>.from(r);
+        map['lida'] = 1;
+        return map;
+      }).toList();
+      await CacheManager.instance.putFast(hiveKey, updatedList);
+    }
+
     await CacheManager.instance.putFast(unreadHiveKey, 0);
     await LocalNotificationService.cancelAllNotifications();
 
@@ -119,6 +159,40 @@ class NotificacaoDataSource {
         idUtilizador: userId,
         marcarTodas: true,
       );
+    }
+  }
+
+  /// Elimina uma notificação (Hive L1 + SQLite L2 + Supabase L3).
+  Future<void> eliminarNotificacao(String idNotificacao) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    // 1. SQLite L2
+    await SqliteService.instance.deleteNotificacao(idNotificacao);
+
+    // 2. Hive L1
+    final hiveKey = 'notificacoes_fast_$userId';
+    final unreadHiveKey = 'unread_notif_count_$userId';
+
+    final fastList = CacheManager.instance.getFast<List>(hiveKey);
+    if (fastList != null) {
+      final updatedList = fastList
+          .where((r) => r['id_notificacao'] != idNotificacao)
+          .toList();
+      await CacheManager.instance.putFast(hiveKey, updatedList);
+      final unreadCount = updatedList.where((r) => r['lida'] == 0 || r['lida'] == false).length;
+      await CacheManager.instance.putFast(unreadHiveKey, unreadCount);
+    }
+
+    // 3. Supabase L3
+    try {
+      await _client
+          .from('notificacao')
+          .delete()
+          .eq('id_notificacao', idNotificacao)
+          .eq('id_utilizador', userId);
+    } catch (e) {
+      debugPrint('Erro ao eliminar notificação remotamente: $e');
     }
   }
 

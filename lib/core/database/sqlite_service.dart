@@ -461,6 +461,19 @@ class SqliteService {
     }
   }
 
+  Future<void> deleteNotificacao(String idNotificacao) async {
+    try {
+      final db = await database;
+      await db.delete(
+        'notificacao',
+        where: 'id_notificacao = ?',
+        whereArgs: [idNotificacao],
+      );
+    } catch (e) {
+      debugPrint('Erro ao eliminar notificação no SQLite: $e');
+    }
+  }
+
   // ==========================================
   // --- 6. VERIFICAÇÕES DE RESOLUÇÃO ---
   // ==========================================
