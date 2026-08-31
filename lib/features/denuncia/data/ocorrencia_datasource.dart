@@ -90,6 +90,7 @@ class OcorrenciaDataSource {
 
     // Limpa a cache Hive/SQLite para que a nova ocorrência apareça no fetch em seguida
     await CacheManager.instance.putFast('ocorrencias_fast_$userId', null);
+    await CacheManager.instance.putFast('my_reports_fast_$userId', null);
   }
 
   /// Lê as ocorrências do utilizador autenticado usando a estratégia SWR:

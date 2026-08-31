@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/database/sqlite_service.dart';
@@ -88,11 +89,18 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<ProfileStats> getStats() async {
     final uid = _uid;
     final hiveKey = 'stats_fast_$uid';
+    final pendingOffline = await _getPendingSyncReports();
+    final offlineCount = pendingOffline.length;
 
     // 1. Tenta obter do Hive L1
     final fastStats = CacheManager.instance.getFast<Map>(hiveKey);
     if (fastStats != null) {
-      return ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
+      final base = ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
+      return ProfileStats(
+        submitted: base.submitted + offlineCount,
+        resolved: base.resolved,
+        pending: base.pending + offlineCount,
+      );
     }
 
     try {
@@ -102,7 +110,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
           .eq('id_utilizador', uid);
 
       final list = rows as List;
-      final submitted = list.length;
+      final submitted = list.length + offlineCount;
       final resolved =
           list.where((r) => r['estado'] == 'resolvida').length;
       final stats = ProfileStats(
@@ -116,19 +124,16 @@ class ProfileRepositoryImpl implements ProfileRepository {
     } catch (_) {
       // Fallback: calcula a partir das ocorrências salvas no SQLite L2
       final localRows = await SqliteService.instance.getOcorrencias(uid);
-      if (localRows.isNotEmpty) {
-        final submitted = localRows.length;
-        final resolved =
-            localRows.where((r) => r['estado'] == 'resolvida').length;
-        final stats = ProfileStats(
-          submitted: submitted,
-          resolved: resolved,
-          pending: submitted - resolved,
-        );
-        await CacheManager.instance.putFast(hiveKey, stats.toJson());
-        return stats;
-      }
-      return ProfileStats.empty;
+      final submitted = localRows.length + offlineCount;
+      final resolved =
+          localRows.where((r) => r['estado'] == 'resolvida').length;
+      final stats = ProfileStats(
+        submitted: submitted,
+        resolved: resolved,
+        pending: submitted - resolved,
+      );
+      await CacheManager.instance.putFast(hiveKey, stats.toJson());
+      return stats;
     }
   }
 
@@ -136,8 +141,9 @@ class ProfileRepositoryImpl implements ProfileRepository {
   Future<List<MyReport>> getMyReports() async {
     final uid = _uid;
     final hiveKey = 'my_reports_fast_$uid';
+    final pendingOffline = await _getPendingSyncReports();
 
-    return await CacheManager.instance.executeSWR<MyReport>(
+    final cachedList = await CacheManager.instance.executeSWR<MyReport>(
       loadFromLocal: () async {
         // 1. Tenta do Hive L1
         final fastList = CacheManager.instance.getFast<List>(hiveKey);
@@ -188,8 +194,52 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
         await SqliteService.instance.saveOcorrencias(uid, rawMaps);
         await CacheManager.instance.putFast(hiveKey, rawMaps);
+        await CacheManager.instance.putFast('ocorrencias_fast_$uid', rawMaps);
       },
     );
+
+    final Set<String> existingIds = cachedList.map((r) => r.id).toSet();
+    final uniquePending =
+        pendingOffline.where((p) => !existingIds.contains(p.id)).toList();
+
+    return [...uniquePending, ...cachedList];
+  }
+
+  Future<List<MyReport>> _getPendingSyncReports() async {
+    try {
+      final pendingItems = await SyncQueueService.instance.getPendingItems();
+      final List<MyReport> pendingReports = [];
+
+      for (final item in pendingItems) {
+        if (item['tipo_operacao'] == SyncOperationType.denuncia.name) {
+          final payloadStr = item['payload_json'] as String;
+          final map = jsonDecode(payloadStr) as Map<String, dynamic>;
+          final id = (map['id'] ?? item['id_item']) as String;
+          final desc = (map['descricao'] as String?) ?? 'Denúncia offline pendente de envio.';
+          final lat = double.tryParse(map['latitude']?.toString() ?? '0') ?? 0;
+          final lng = double.tryParse(map['longitude']?.toString() ?? '0') ?? 0;
+          final photoPath = item['file_path'] as String? ?? map['fotoPathLocal'] as String?;
+          final dataHoraStr = map['dataHoraRegisto'] as String? ?? item['data_criacao'] as String?;
+
+          pendingReports.add(
+            MyReport(
+              id: id,
+              photoUrl: photoPath,
+              categoria: 'Denúncia (Offline)',
+              descricao: desc,
+              latitude: lat,
+              longitude: lng,
+              estado: 'pendente_sync',
+              gravidade: map['gravidade']?.toString() ?? 'media',
+              dataHora: DateTime.tryParse(dataHoraStr ?? '') ?? DateTime.now(),
+            ),
+          );
+        }
+      }
+      return pendingReports;
+    } catch (e) {
+      return [];
+    }
   }
 
   @override

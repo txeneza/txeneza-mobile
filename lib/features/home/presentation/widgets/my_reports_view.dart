@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -28,7 +29,7 @@ class _MyReportsViewState extends State<MyReportsView> {
   String _searchQuery = '';
   String _selectedFilter = 'Todas';
 
-  static const _filters = ['Todas', 'Pendente', 'Em análise', 'Resolvida'];
+  static const _filters = ['Todas', 'Pendente', 'Em análise', 'Resolvida', 'Offline'];
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +311,8 @@ class _ReportCard extends StatelessWidget {
   }
 
   Widget _photo() {
-    if (report.photoUrl == null) {
+    final url = report.photoUrl;
+    if (url == null || url.isEmpty) {
       return Container(
         color: AppColors.forestGreen.withValues(alpha: 0.1),
         child: const Center(
@@ -318,8 +320,16 @@ class _ReportCard extends StatelessWidget {
         ),
       );
     }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      final file = File(url);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
     return CachedNetworkImage(
-      imageUrl: report.photoUrl!,
+      imageUrl: url,
       fit: BoxFit.cover,
       memCacheWidth: 200,
       memCacheHeight: 200,

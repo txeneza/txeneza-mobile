@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/constants/beira_neighborhoods.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/utils/date_utils.dart';
@@ -63,12 +65,21 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   /// Converte as coordenadas num nome de zona/bairro. É best-effort e depende de
-  /// rede; em falha mostramos apenas as coordenadas.
+  /// rede; em falha faz fallback instantâneo para BeiraNeighborhoods.
   Future<void> _resolveBairro() async {
-    final nome = await ReverseGeocoder.bairro(
+    String? nome;
+    try {
+      nome = await ReverseGeocoder.bairro(
+        widget.report.latitude,
+        widget.report.longitude,
+      );
+    } catch (_) {}
+
+    nome ??= BeiraNeighborhoods.findClosestBairro(
       widget.report.latitude,
       widget.report.longitude,
     );
+
     if (!mounted) return;
     setState(() {
       _bairro = nome;
@@ -369,7 +380,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
   }
 
   Widget _photo(bool isDark) {
-    if (widget.report.photoUrl == null) {
+    final url = widget.report.photoUrl;
+    if (url == null || url.isEmpty) {
       return Container(
         color: AppColors.forestGreen.withValues(alpha: 0.15),
         child: const Center(
@@ -377,8 +389,16 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
         ),
       );
     }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      final file = File(url);
+      if (file.existsSync()) {
+        return Image.file(file, fit: BoxFit.cover);
+      }
+    }
+
     return CachedNetworkImage(
-      imageUrl: widget.report.photoUrl!,
+      imageUrl: url,
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
         color: isDark ? AppColors.grey800 : AppColors.grey200,

@@ -8,7 +8,8 @@ import '../widgets/my_reports_view.dart';
 
 /// Lista as ocorrências reais submetidas pelo próprio utilizador.
 class MyReportsPage extends StatefulWidget {
-  const MyReportsPage({super.key});
+  final bool isOnline;
+  const MyReportsPage({super.key, this.isOnline = true});
 
   @override
   State<MyReportsPage> createState() => _MyReportsPageState();
@@ -26,7 +27,9 @@ class _MyReportsPageState extends State<MyReportsPage> {
   void initState() {
     super.initState();
     _load();
-    _subscribeRealtime();
+    if (widget.isOnline) {
+      _subscribeRealtime();
+    }
   }
 
   @override
@@ -124,7 +127,36 @@ class _MyReportsPageState extends State<MyReportsPage> {
           ),
         ],
       ),
-      body: _buildBody(isDark),
+      body: Column(
+        children: [
+          if (!widget.isOnline)
+            Container(
+              color: isDark ? const Color(0xFF3E2723) : const Color(0xFFFFF3E0),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    LucideIcons.wifiOff,
+                    size: 14,
+                    color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Modo offline · A visualizar relatórios em cache local',
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(child: _buildBody(isDark)),
+        ],
+      ),
     );
   }
 

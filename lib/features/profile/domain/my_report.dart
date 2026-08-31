@@ -34,6 +34,9 @@ class MyReport {
 
   String get estadoLabel {
     switch (estado) {
+      case 'pendente_sync':
+      case 'offline':
+        return 'Offline';
       case 'em_analise':
         return 'Em análise';
       case 'resolvida':
@@ -48,6 +51,9 @@ class MyReport {
 
   Color get estadoColor {
     switch (estado) {
+      case 'pendente_sync':
+      case 'offline':
+        return const Color(0xFFD84315); // Âmbar escuro / Laranja Offline
       case 'em_analise':
         return const Color(0xFF1565C0); // Azul
       case 'resolvida':
