@@ -55,7 +55,10 @@ class DenunciaQueue {
         .toList();
   }
 
-  Future<int> pendingCount() async => (await pending()).length;
+  Future<int> pendingCount() async {
+    final drafts = await pending();
+    return drafts.where((d) => d.tentativas < 3).length;
+  }
 
   Future<void> _remove(String id) async {
     final prefs = await SharedPreferences.getInstance();
@@ -82,7 +85,7 @@ class DenunciaQueue {
 
   /// Tenta submeter todas as denúncias pendentes. Cada sucesso remove o draft e
   /// apaga a foto local. Se forçada pelo utilizador, reinicia as tentativas.
-  /// Caso contrário, pula denúncias com falhas persistentes repetidas (> 3 vezes).
+  /// Caso contrário, descarta denúncias órfãs ou com falhas persistentes repetidas.
   Future<int> flush({bool forceResetTentativas = false}) async {
     List<DenunciaDraft> drafts = await pending();
     
@@ -93,20 +96,28 @@ class DenunciaQueue {
           await _update(drafts[i]);
         }
       }
+      drafts = await pending();
     }
 
     int sincronizadas = 0;
 
     for (final draft in drafts) {
       // Pula rascunhos que já falharam consecutivamente mais de 3 vezes por erro não de rede.
-      if (draft.tentativas >= 3) {
+      if (!forceResetTentativas && draft.tentativas >= 3) {
+        continue;
+      }
+
+      // Validação de integridade do ficheiro local: se a imagem foi eliminada, descarta para evitar bloqueio eterno
+      final f = File(draft.fotoPathLocal);
+      if (!await f.exists()) {
+        debugPrint('Ficheiro de imagem inexistente para a denúncia ${draft.id}. A remover rascunho órfão.');
+        await _remove(draft.id);
         continue;
       }
 
       try {
         await _ocorrenciaDataSource.submit(draft);
         await _remove(draft.id);
-        final f = File(draft.fotoPathLocal);
         if (await f.exists()) await f.delete();
         sincronizadas++;
       } catch (e) {

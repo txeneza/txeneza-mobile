@@ -1,9 +1,36 @@
+import 'dart:math' as math;
+
+/// Resultado da resolução espacial de coordenadas na Cidade da Beira.
+class BairroResolution {
+  final String nome;
+  final bool isDentroDaBeira;
+  final double distanciaCentroKm;
+
+  const BairroResolution({
+    required this.nome,
+    required this.isDentroDaBeira,
+    required this.distanciaCentroKm,
+  });
+}
+
 /// Lista canónica dos 31 bairros oficiais da Cidade da Beira, Moçambique.
 ///
 /// Ordenada alfabeticamente. Inclui centróides geográficos para resolução
 /// automática de bairro a partir de coordenadas GPS [lat, lng].
 class BeiraNeighborhoods {
   BeiraNeighborhoods._();
+
+  /// Limites da caixa delimitadora (Bounding Box) do perímetro municipal da Beira.
+  static const double minLat = -20.0000;
+  static const double maxLat = -19.6500;
+  static const double minLng = 34.7500;
+  static const double maxLng = 35.0000;
+
+  /// Limiar de tolerância máxima em quilómetros relativamente ao centróide mais próximo.
+  static const double maxToleranceKm = 15.0;
+
+  /// Rótulo atribuído a coordenadas fora do perímetro de cobertura da Beira.
+  static const String foraDaBeira = 'Fora da Beira';
 
   static const List<String> list = [
     'Alto da Manga',
@@ -74,21 +101,50 @@ class BeiraNeighborhoods {
     'Vila Massane': [-19.8180, 34.8590],
   };
 
-  /// Determina o bairro canónico oficial da Beira mais próximo de um par de coordenadas (lat, lng).
-  static String findClosestBairro(double lat, double lng) {
-    String closestName = 'Beira';
-    double minSquareDist = double.infinity;
+  /// Resolve a localização espacial de um par de coordenadas, devolvendo
+  /// a informação de integridade geográfica no Município da Beira.
+  static BairroResolution resolveBairro(double lat, double lng) {
+    if (!lat.isFinite || !lng.isFinite) {
+      return const BairroResolution(
+        nome: foraDaBeira,
+        isDentroDaBeira: false,
+        distanciaCentroKm: double.infinity,
+      );
+    }
+
+    // Verificação rápida de Bounding Box
+    final bool foraBoundingBox =
+        lat < minLat || lat > maxLat || lng < minLng || lng > maxLng;
+
+    String closestName = 'Central';
+    double minDistanceKm = double.infinity;
 
     centers.forEach((bairro, coords) {
-      final double dLat = lat - coords[0];
-      final double dLng = lng - coords[1];
-      final double distSq = dLat * dLat + dLng * dLng;
-      if (distSq < minSquareDist) {
-        minSquareDist = distSq;
+      final double dLatKm = (lat - coords[0]) * 110.574;
+      final double dLngKm = (lng - coords[1]) *
+          111.320 *
+          math.cos(coords[0] * math.pi / 180.0);
+      final double distKm = math.sqrt(dLatKm * dLatKm + dLngKm * dLngKm);
+
+      if (distKm < minDistanceKm) {
+        minDistanceKm = distKm;
         closestName = bairro;
       }
     });
 
-    return closestName;
+    final bool isDentro = !foraBoundingBox && (minDistanceKm <= maxToleranceKm);
+
+    return BairroResolution(
+      nome: isDentro ? closestName : foraDaBeira,
+      isDentroDaBeira: isDentro,
+      distanciaCentroKm: minDistanceKm,
+    );
+  }
+
+  /// Determina o bairro canónico oficial da Beira mais próximo.
+  /// Caso a coordenada esteja fora do perímetro municipal (ou a mais de 15 km),
+  /// devolve 'Fora da Beira' em vez de forçar a associação errónea.
+  static String findClosestBairro(double lat, double lng) {
+    return resolveBairro(lat, lng).nome;
   }
 }

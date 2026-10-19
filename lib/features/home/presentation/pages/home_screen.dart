@@ -42,7 +42,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   // Connectivity & Queue state
   bool _isOnline = true;
-  bool _isManualOverride = false;
   bool _isFirstConnectivityEvent = true;
   int _pendingCount = 0;
   late final StreamSubscription<bool> _connectivitySubscription;
@@ -82,9 +81,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _subscribeToNotificacoes();
     FCMService.syncToken();
     _connectivitySubscription = NetworkInfo().onConnectivityChanged.listen((bool isOnline) {
-      if (!_isManualOverride) {
-        _updateConnectionStatus(isOnline);
-      }
+      _updateConnectionStatus(isOnline);
     });
   }
 
@@ -155,23 +152,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  /// Calcula a contagem fidedigna de denúncias pendentes, desduplicando identificadores
+  /// entre a fila de denúncias e a fila unificada SQLite, ignorando falhas permanentes.
+  Future<int> _calculatePendingDenunciasCount() async {
+    final drafts = await _denunciaQueue.pending();
+    final activeDrafts = drafts.where((d) => d.tentativas < 3).toList();
+    final draftIds = activeDrafts.map((d) => d.id).toSet();
+
+    final syncItems = await SyncQueueService.instance.getPendingItems();
+    int additionalSync = 0;
+    for (final item in syncItems) {
+      if (item['tipo_operacao'] == SyncOperationType.denuncia.name) {
+        final id = item['id_item'] as String;
+        final tentativas = (item['tentativas'] as int?) ?? 0;
+        if (!draftIds.contains(id) && tentativas < 4) {
+          additionalSync++;
+        }
+      }
+    }
+    return activeDrafts.length + additionalSync;
+  }
+
   /// Sincroniza denúncias e ações em fila offline; se enviar alguma, recarrega o mapa.
   Future<void> _flushQueue() async {
     try {
-      final initialCount = (await _denunciaQueue.pendingCount()) +
-          (await SyncQueueService.instance.pendingCount());
+      final initialCount = await _calculatePendingDenunciasCount();
       if (mounted) setState(() => _pendingCount = initialCount);
       if (!_isOnline) return;
 
-      final enviadas = await _denunciaQueue.flush();
-      await SyncQueueService.instance.flush();
+      final enviadasQueue = await _denunciaQueue.flush();
+      final enviadasSync = await SyncQueueService.instance.flush();
 
-      final remainingCount = (await _denunciaQueue.pendingCount()) +
-          (await SyncQueueService.instance.pendingCount());
+      final remainingCount = await _calculatePendingDenunciasCount();
       if (mounted) {
         setState(() => _pendingCount = remainingCount);
       }
-      if (enviadas > 0) {
+      if (enviadasQueue > 0 || enviadasSync > 0) {
         await _loadOccurrences();
       }
     } catch (e) {
@@ -195,9 +211,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _checkInitialConnectivity() async {
     final hasConnection = await NetworkInfo().isConnected;
-    if (!_isManualOverride) {
-      _updateConnectionStatus(hasConnection);
-    }
+    _updateConnectionStatus(hasConnection);
   }
 
   void _updateConnectionStatus(bool hasConnection) {
@@ -222,12 +236,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _toggleConnectivityManually() {
-    setState(() {
-      _isOnline = !_isOnline;
-      _isManualOverride = true;
-    });
-    _showConnectivitySnackbar(_isOnline);
+  Future<void> _recheckConnectivityManually() async {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'A verificar ligação à internet...',
+          style: TextStyle(fontFamily: 'Geist'),
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    final hasConnection = await NetworkInfo().checkRealConnection(force: true);
+    if (!mounted) return;
+
+    _updateConnectionStatus(hasConnection);
+    _showConnectivitySnackbar(hasConnection);
+
+    if (hasConnection) {
+      if (_pontosRecolha.isEmpty) _loadPontosRecolha();
+      _loadOccurrences();
+      _flushQueue();
+    }
   }
 
   void _showConnectivitySnackbar(bool isOnline) {
@@ -236,8 +268,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       SnackBar(
         content: Text(
           isOnline
-              ? 'Conexão restabelecida. Sincronizando dados em tempo real...'
-              : 'Você está offline. Exibindo dados salvos localmente.',
+              ? 'Ligação restabelecida. A sincronizar dados em tempo real...'
+              : 'Sem ligação à internet. A apresentar dados guardados localmente.',
           style: const TextStyle(fontFamily: 'Geist'),
         ),
         backgroundColor: isOnline ? AppColors.forestGreen : const Color(0xFFFB8C00),
@@ -411,7 +443,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 right: 0,
                 child: TxenezaAppBar(
                   isOnline: _isOnline,
-                  onConnectivityTap: _toggleConnectivityManually,
+                  onConnectivityTap: _recheckConnectivityManually,
                   unreadCount: _unreadCount,
                   onBellTap: _onBellTap,
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../domain/profile_stats.dart';
 import '../../domain/repositories/profile_repository.dart';
 import 'profile_state.dart';
 
@@ -12,18 +13,32 @@ class ProfileController extends ChangeNotifier {
     required ProfileRepository repository,
   }) : _repository = repository;
 
-  Future<void> loadProfile() async {
-    _state = const ProfileLoading();
-    notifyListeners();
+  Future<void> loadProfile({bool isRefresh = false}) async {
+    // 1. Estratégia First Offline: Leitura imediata (0ms) do Hive L1 / SQLite L2
+    if (!isRefresh) {
+      final cachedProfile = await _repository.getCachedProfile();
+      final cachedStats = await _repository.getCachedStats();
 
+      if (cachedProfile != null) {
+        _state = ProfileLoaded(cachedProfile, cachedStats ?? ProfileStats.empty);
+        notifyListeners();
+      } else {
+        _state = const ProfileLoading();
+        notifyListeners();
+      }
+    }
+
+    // 2. Revalidação em segundo plano no Supabase
     try {
-      final profile = await _repository.getProfile();
-      final stats = await _repository.getStats();
-      _state = ProfileLoaded(profile, stats);
-    } catch (e) {
-      _state = ProfileError(e.toString().replaceAll('Exception: ', ''));
-    } finally {
+      final freshProfile = await _repository.fetchRemoteProfile();
+      final freshStats = await _repository.fetchRemoteStats();
+      _state = ProfileLoaded(freshProfile, freshStats);
       notifyListeners();
+    } catch (e) {
+      if (_state is! ProfileLoaded) {
+        _state = ProfileError(e.toString().replaceAll('Exception: ', ''));
+        notifyListeners();
+      }
     }
   }
 

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../../core/errors/supabase_error_translator.dart';
+import '../../../../../core/services/auth_provider_resolver.dart';
 import '../../../../../core/theme/colors/app_colors.dart';
 import '../../../../../core/theme/spacing/app_spacing.dart';
 import '../../../../auth/presentation/widgets/custom_text_field.dart';
@@ -18,6 +21,13 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isGoogleOnly = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isGoogleOnly = AuthProviderResolver.isGoogleOnly();
+  }
 
   @override
   void dispose() {
@@ -27,31 +37,76 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      final currentUser = client.auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('Nenhuma sessão ativa encontrada. Inicie sessão novamente.');
+      }
+
+      // Se a conta já tiver palavra-passe prévia, valida a atual antes de prosseguir
+      if (!_isGoogleOnly) {
+        final email = currentUser.email;
+        final currentPass = _currentPasswordController.text.trim();
+        if (email != null && currentPass.isNotEmpty) {
+          await client.auth.signInWithPassword(
+            email: email,
+            password: currentPass,
+          );
+        }
+      }
+
+      // Atualiza ou define a palavra-passe diretamente no Supabase Auth
+      await client.auth.updateUser(
+        UserAttributes(
+          password: _newPasswordController.text.trim(),
+        ),
+      );
+
+      if (!mounted) return;
       setState(() {
-        _isLoading = true;
+        _isLoading = false;
       });
 
-      // Simular alteração
-      Future.delayed(const Duration(milliseconds: 1200), () {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Palavra-passe alterada com sucesso! (Demonstração)',
-                style: TextStyle(fontFamily: 'Geist'),
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          Navigator.of(context).pop();
-        }
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isGoogleOnly
+                ? 'Palavra-passe definida com sucesso. Pode agora iniciar sessão com a sua palavra-passe ou com a Google.'
+                : 'Palavra-passe alterada com sucesso.',
+            style: const TextStyle(fontFamily: 'Geist'),
+          ),
+          backgroundColor: AppColors.forestGreen,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
       });
+
+      final mensagemErro = SupabaseErrorTranslator.translate(e);
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            mensagemErro,
+            style: const TextStyle(fontFamily: 'Geist'),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -60,12 +115,17 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    final String pageTitle = _isGoogleOnly ? 'Definir Palavra-passe' : 'Alterar Palavra-passe';
+    final String pageDescription = _isGoogleOnly
+        ? 'A sua conta foi criada através da Google e não possui palavra-passe associada. Ao definir uma palavra-passe, poderá aceder à plataforma tanto através da Google como utilizando diretamente o seu endereço de e-mail.'
+        : 'Defina uma nova palavra-passe forte para proteger a sua conta Txeneza.';
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text(
-          'Alterar Palavra-passe',
-          style: TextStyle(fontFamily: 'Geist', fontWeight: FontWeight.bold, fontSize: 18),
+        title: Text(
+          pageTitle,
+          style: const TextStyle(fontFamily: 'Geist', fontWeight: FontWeight.bold, fontSize: 18),
         ),
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft),
@@ -84,7 +144,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             children: [
               const SizedBox(height: 12),
               Text(
-                'Defina uma nova palavra-passe forte para proteger a sua conta Txeneza.',
+                pageDescription,
                 style: TextStyle(
                   fontFamily: 'Geist',
                   fontSize: 14,
@@ -107,47 +167,44 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   child: Column(
                     children: [
-                      CustomTextField(
-                        controller: _currentPasswordController,
-                        labelText: 'Palavra-passe Atual',
-                        hintText: 'Digite a sua palavra-passe atual',
-                        isPassword: true,
-                        prefixIcon: LucideIcons.lock,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor, introduza a palavra-passe atual.';
-                          }
-                          return null;
-                        },
-                      ),
-                      AppSpacing.verticalSpaceMD,
+                      // Se a conta for exclusivamente Google, não exige palavra-passe atual
+                      if (!_isGoogleOnly) ...[
+                        CustomTextField(
+                          controller: _currentPasswordController,
+                          labelText: 'Palavra-passe Atual',
+                          hintText: 'Introduza a sua palavra-passe atual',
+                          prefixIcon: LucideIcons.lock,
+                          isPassword: true,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Introduza a sua palavra-passe atual.';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       CustomTextField(
                         controller: _newPasswordController,
-                        labelText: 'Nova Palavra-passe',
-                        hintText: 'Digite a nova palavra-passe',
+                        labelText: _isGoogleOnly ? 'Nova Palavra-passe' : 'Nova Palavra-passe',
+                        hintText: 'No mínimo 6 carateres',
+                        prefixIcon: LucideIcons.keyRound,
                         isPassword: true,
-                        prefixIcon: LucideIcons.lock,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor, introduza a nova palavra-passe.';
-                          }
-                          if (value.length < 8) {
-                            return 'A palavra-passe deve ter pelo menos 8 caracteres.';
+                          if (value == null || value.length < 6) {
+                            return 'A palavra-passe deve conter pelo menos 6 carateres.';
                           }
                           return null;
                         },
                       ),
-                      AppSpacing.verticalSpaceMD,
+                      const SizedBox(height: 16),
                       CustomTextField(
                         controller: _confirmPasswordController,
-                        labelText: 'Confirmar Nova Palavra-passe',
-                        hintText: 'Confirme a nova palavra-passe',
+                        labelText: 'Confirmar Palavra-passe',
+                        hintText: 'Repita a nova palavra-passe',
+                        prefixIcon: LucideIcons.checkCircle2,
                         isPassword: true,
-                        prefixIcon: LucideIcons.lock,
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor, confirme a nova palavra-passe.';
-                          }
                           if (value != _newPasswordController.text) {
                             return 'As palavras-passe não coincidem.';
                           }
@@ -179,9 +236,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'Salvar Palavra-passe',
-                        style: TextStyle(fontFamily: 'Geist', fontWeight: FontWeight.bold),
+                    : Text(
+                        _isGoogleOnly ? 'Definir Palavra-passe' : 'Guardar Alterações',
+                        style: const TextStyle(fontFamily: 'Geist', fontWeight: FontWeight.bold),
                       ),
               ),
             ],

@@ -628,15 +628,33 @@ class SqliteService {
     }
   }
 
-  Future<int> getPendingSyncCount() async {
+  Future<int> getPendingSyncCount({String? tipoOperacao}) async {
     try {
       final db = await database;
+      if (tipoOperacao != null) {
+        final result = await db.rawQuery(
+          "SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pendente' AND (tentativas IS NULL OR tentativas < 4) AND tipo_operacao = ?",
+          [tipoOperacao],
+        );
+        return Sqflite.firstIntValue(result) ?? 0;
+      }
       final result = await db.rawQuery(
-        "SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pendente'",
+        "SELECT COUNT(*) as count FROM sync_queue WHERE status = 'pendente' AND (tentativas IS NULL OR tentativas < 4)",
       );
       return Sqflite.firstIntValue(result) ?? 0;
     } catch (e) {
       return 0;
+    }
+  }
+
+  Future<void> resetFailedSyncItems() async {
+    try {
+      final db = await database;
+      await db.rawUpdate(
+        "UPDATE sync_queue SET status = 'pendente', tentativas = 0 WHERE status = 'falhado' OR tentativas >= 4",
+      );
+    } catch (e) {
+      debugPrint('Erro ao redefinir itens falhados na fila de sincronização: $e');
     }
   }
 

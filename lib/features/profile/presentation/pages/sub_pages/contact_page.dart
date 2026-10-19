@@ -33,7 +33,7 @@ class ContactPage extends StatelessWidget {
           children: [
             const SizedBox(height: 12),
             Text(
-              'Tem alguma dúvida, sugestão ou deseja estabelecer uma parceria de limpeza municipal na Cidade da Beira? Entre em contacto connosco.',
+              'Tem alguma dúvida, sugestão ou pretende obter esclarecimentos sobre a gestão de resíduos na Cidade da Beira? Entre em contacto com os serviços municipais.',
               style: TextStyle(
                 fontFamily: 'Geist',
                 fontSize: 14,
@@ -44,31 +44,31 @@ class ContactPage extends StatelessWidget {
             const SizedBox(height: 24),
             _buildContactCard(
               icon: LucideIcons.mail,
-              title: 'E-mail de Suporte',
-              value: 'suporte@txeneza.com',
-              subtitle: 'Resposta em até 24 horas úteis',
+              title: 'Correio Eletrónico Institucional',
+              value: 'suporte@txeneza.gov.mz',
+              subtitle: 'Atendimento e suporte ao munícipe',
               isDark: isDark,
             ),
             const SizedBox(height: 12),
             _buildContactCard(
               icon: LucideIcons.phone,
               title: 'Contacto Telefónico',
-              value: '+258 84 123 4567',
-              subtitle: 'Disponível de segunda a sexta, das 8h às 17h',
+              value: '+258 23 322 000',
+              subtitle: 'Disponível de segunda a sexta-feira, das 8h às 15h30',
               isDark: isDark,
             ),
             const SizedBox(height: 12),
             _buildContactCard(
               icon: LucideIcons.mapPin,
               title: 'Sede Administrativa',
-              value: 'Avenida da Independência, Beira, Moçambique',
+              value: 'Avenida do Poder Popular, Beira, Moçambique',
               subtitle: 'Conselho Municipal da Cidade da Beira',
               isDark: isDark,
             ),
             const SizedBox(height: 32),
             Center(
               child: Text(
-                'Txeneza Beira Sustentável v1.0.0',
+                'Txeneza Beira Sustentável',
                 style: TextStyle(
                   fontFamily: 'Geist',
                   fontSize: 12,
@@ -103,19 +103,14 @@ class ContactPage extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.forestGreen.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                color: isDark ? Colors.white.withValues(alpha: 0.05) : AppColors.forestGreen.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
-                size: 24,
-              ),
+              child: Icon(icon, color: isDark ? AppColors.limeGreen : AppColors.forestGreen, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -126,27 +121,26 @@ class ContactPage extends StatelessWidget {
                     title,
                     style: TextStyle(
                       fontFamily: 'Geist',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.grey600,
+                      fontSize: 12,
+                      color: isDark ? AppColors.grey300 : AppColors.grey600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     value,
                     style: TextStyle(
                       fontFamily: 'Geist',
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: isDark ? Colors.white : AppColors.forestGreen,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: TextStyle(
                       fontFamily: 'Geist',
-                      fontSize: 12,
+                      fontSize: 11,
                       color: AppColors.grey600,
                     ),
                   ),

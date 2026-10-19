@@ -5,6 +5,7 @@ import '../../../../core/database/sqlite_service.dart';
 import '../../../../core/errors/supabase_error_translator.dart';
 import '../../../../core/network/cache_manager.dart';
 import '../../../../core/utils/date_utils.dart';
+import '../../../denuncia/data/denuncia_queue.dart';
 import '../../../sync/data/sync_queue_service.dart';
 import '../../domain/my_report.dart';
 import '../../domain/profile_stats.dart';
@@ -23,43 +24,141 @@ class ProfileRepositoryImpl implements ProfileRepository {
   }
 
   @override
-  Future<ProfileUserModel> getProfile() async {
+  Future<ProfileUserModel?> getCachedProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    final uid = user.id;
+    final hiveKey = 'profile_fast_$uid';
+
+    // 1. Hive L1 Fast Access (0ms na memória/disco)
+    final fastMap = CacheManager.instance.getFast<Map>(hiveKey);
+    if (fastMap != null) {
+      return ProfileUserModel.fromJson(Map<String, dynamic>.from(fastMap));
+    }
+
+    // 2. SQLite L2 Relacional
+    final sqliteRow = await SqliteService.instance.getPerfil(uid);
+    if (sqliteRow != null) {
+      final model = ProfileUserModel.fromJson(sqliteRow);
+      await CacheManager.instance.putFast(hiveKey, model.toJson());
+      return model;
+    }
+
+    // 3. Fallback instantâneo: Metadados da sessão Auth ativa
+    final metadata = user.userMetadata ?? const <String, dynamic>{};
+    if (metadata.isNotEmpty || (user.email != null && user.email!.isNotEmpty)) {
+      final fallbackModel = ProfileUserModel(
+        id: uid,
+        fullName: (metadata['nome'] ?? metadata['full_name'] ?? metadata['name'] ?? '') as String,
+        email: user.email ?? '',
+        phoneNumber: (metadata['telefone'] ?? '') as String,
+        neighborhood: (metadata['bairro'] ?? '') as String,
+        token: _client.auth.currentSession?.accessToken,
+        isVerified: true,
+      );
+      await CacheManager.instance.putFast(hiveKey, fallbackModel.toJson());
+      return fallbackModel;
+    }
+
+    return null;
+  }
+
+  @override
+  Future<ProfileStats?> getCachedStats() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+    final uid = user.id;
+    final hiveKey = 'stats_fast_$uid';
+
+    final pendingOffline = await _getPendingSyncReports();
+    final offlineCount = pendingOffline.length;
+
+    // 1. Hive L1 Fast Access
+    final fastStats = CacheManager.instance.getFast<Map>(hiveKey);
+    if (fastStats != null) {
+      final base = ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
+      return ProfileStats(
+        submitted: base.submitted + offlineCount,
+        resolved: base.resolved,
+        pending: base.pending + offlineCount,
+      );
+    }
+
+    // 2. SQLite L2 rápido a partir das ocorrências salvas localmente
+    final localRows = await SqliteService.instance.getOcorrencias(uid);
+    if (localRows.isNotEmpty || offlineCount > 0) {
+      final submitted = localRows.length + offlineCount;
+      final resolved = localRows.where((r) => r['estado'] == 'resolvida').length;
+      final stats = ProfileStats(
+        submitted: submitted,
+        resolved: resolved,
+        pending: submitted - resolved,
+      );
+      await CacheManager.instance.putFast(hiveKey, stats.toJson());
+      return stats;
+    }
+
+    return null;
+  }
+
+  @override
+  Future<ProfileUserModel> fetchRemoteProfile() async {
     final uid = _uid;
     final hiveKey = 'profile_fast_$uid';
 
-    final result = await CacheManager.instance.executeSingleSWR<ProfileUserModel>(
-      loadFromLocal: () async {
-        // 1. Hive L1 Fast Access
-        final fastMap = CacheManager.instance.getFast<Map>(hiveKey);
-        if (fastMap != null) {
-          return ProfileUserModel.fromJson(Map<String, dynamic>.from(fastMap));
-        }
+    final row = await _client
+        .from('utilizador')
+        .select()
+        .eq('id_utilizador', uid)
+        .single();
 
-        // 2. SQLite L2 Relacional
-        final sqliteRow = await SqliteService.instance.getPerfil(uid);
-        if (sqliteRow != null) {
-          return ProfileUserModel.fromJson(sqliteRow);
-        }
+    final profile = ProfileUserModel.fromJson(row);
+    final map = profile.toJson();
+    await SqliteService.instance.savePerfil(map);
+    await CacheManager.instance.putFast(hiveKey, map);
+    return profile;
+  }
 
-        return null;
-      },
-      fetchFromRemote: () async {
-        final row = await _client
-            .from('utilizador')
-            .select()
-            .eq('id_utilizador', uid)
-            .single();
-        return ProfileUserModel.fromJson(row);
-      },
-      saveToLocal: (profile) async {
-        final map = profile.toJson();
-        await SqliteService.instance.savePerfil(map);
-        await CacheManager.instance.putFast(hiveKey, map);
-      },
-    );
+  @override
+  Future<ProfileStats> fetchRemoteStats() async {
+    final uid = _uid;
+    final hiveKey = 'stats_fast_$uid';
+    final pendingOffline = await _getPendingSyncReports();
+    final offlineCount = pendingOffline.length;
 
-    if (result != null) return result;
-    throw Exception('Não foi possível carregar o perfil.');
+    try {
+      final rows = await _client
+          .from('ocorrencia')
+          .select('estado')
+          .eq('id_utilizador', uid);
+
+      final list = rows as List;
+      final submitted = list.length + offlineCount;
+      final resolved = list.where((r) => r['estado'] == 'resolvida').length;
+      final stats = ProfileStats(
+        submitted: submitted,
+        resolved: resolved,
+        pending: submitted - resolved,
+      );
+
+      await CacheManager.instance.putFast(hiveKey, stats.toJson());
+      return stats;
+    } catch (_) {
+      final cached = await getCachedStats();
+      if (cached != null) return cached;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<ProfileUserModel> getProfile() async {
+    final cached = await getCachedProfile();
+    if (cached != null) {
+      // Revalida em segundo plano sem travar a interface
+      fetchRemoteProfile().catchError((_) => cached);
+      return cached;
+    }
+    return await fetchRemoteProfile();
   }
 
   @override
@@ -80,61 +179,18 @@ class ProfileRepositoryImpl implements ProfileRepository {
           .update(updateData)
           .eq('id_utilizador', uid);
     } catch (e) {
-      // Se estiver offline ou falhar na rede, enfileira para sincronização
       await SyncQueueService.instance.enqueuePerfilUpdate(uid, updateData);
     }
   }
 
   @override
   Future<ProfileStats> getStats() async {
-    final uid = _uid;
-    final hiveKey = 'stats_fast_$uid';
-    final pendingOffline = await _getPendingSyncReports();
-    final offlineCount = pendingOffline.length;
-
-    // 1. Tenta obter do Hive L1
-    final fastStats = CacheManager.instance.getFast<Map>(hiveKey);
-    if (fastStats != null) {
-      final base = ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
-      return ProfileStats(
-        submitted: base.submitted + offlineCount,
-        resolved: base.resolved,
-        pending: base.pending + offlineCount,
-      );
+    final cached = await getCachedStats();
+    if (cached != null) {
+      fetchRemoteStats().catchError((_) => cached);
+      return cached;
     }
-
-    try {
-      final rows = await _client
-          .from('ocorrencia')
-          .select('estado')
-          .eq('id_utilizador', uid);
-
-      final list = rows as List;
-      final submitted = list.length + offlineCount;
-      final resolved =
-          list.where((r) => r['estado'] == 'resolvida').length;
-      final stats = ProfileStats(
-        submitted: submitted,
-        resolved: resolved,
-        pending: submitted - resolved,
-      );
-
-      await CacheManager.instance.putFast(hiveKey, stats.toJson());
-      return stats;
-    } catch (_) {
-      // Fallback: calcula a partir das ocorrências salvas no SQLite L2
-      final localRows = await SqliteService.instance.getOcorrencias(uid);
-      final submitted = localRows.length + offlineCount;
-      final resolved =
-          localRows.where((r) => r['estado'] == 'resolvida').length;
-      final stats = ProfileStats(
-        submitted: submitted,
-        resolved: resolved,
-        pending: submitted - resolved,
-      );
-      await CacheManager.instance.putFast(hiveKey, stats.toJson());
-      return stats;
-    }
+    return await fetchRemoteStats();
   }
 
   @override
@@ -207,14 +263,44 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
   Future<List<MyReport>> _getPendingSyncReports() async {
     try {
-      final pendingItems = await SyncQueueService.instance.getPendingItems();
       final List<MyReport> pendingReports = [];
+      final Set<String> seenIds = {};
 
+      // 1. Lê rascunhos da DenunciaQueue (SharedPreferences)
+      try {
+        final drafts = await DenunciaQueue().pending();
+        for (final draft in drafts) {
+          if (draft.tentativas < 3) {
+            seenIds.add(draft.id);
+            pendingReports.add(
+              MyReport(
+                id: draft.id,
+                photoUrl: draft.fotoPathLocal,
+                categoria: 'Denúncia (Offline)',
+                descricao: (draft.descricao != null && draft.descricao!.trim().isNotEmpty)
+                    ? draft.descricao!.trim()
+                    : 'Denúncia offline pendente de envio.',
+                latitude: draft.latitude,
+                longitude: draft.longitude,
+                estado: 'pendente_sync',
+                gravidade: draft.gravidade.dbValue,
+                dataHora: draft.dataHoraRegisto,
+              ),
+            );
+          }
+        }
+      } catch (_) {}
+
+      // 2. Lê pendências da SyncQueueService (SQLite)
+      final pendingItems = await SyncQueueService.instance.getPendingItems();
       for (final item in pendingItems) {
         if (item['tipo_operacao'] == SyncOperationType.denuncia.name) {
           final payloadStr = item['payload_json'] as String;
           final map = jsonDecode(payloadStr) as Map<String, dynamic>;
           final id = (map['id'] ?? item['id_item']) as String;
+          if (seenIds.contains(id)) continue;
+          seenIds.add(id);
+
           final desc = (map['descricao'] as String?) ?? 'Denúncia offline pendente de envio.';
           final lat = double.tryParse(map['latitude']?.toString() ?? '0') ?? 0;
           final lng = double.tryParse(map['longitude']?.toString() ?? '0') ?? 0;

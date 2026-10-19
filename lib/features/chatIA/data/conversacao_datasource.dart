@@ -127,16 +127,22 @@ class ConversacaoDataSource {
   /// Apaga de forma definitiva todo o histórico de conversas do utilizador no SQLite e no Supabase.
   Future<void> clearHistory() async {
     final uid = _client.auth.currentUser?.id;
+
+    // 1. Limpa todas as tabelas locais no SQLite
     if (uid != null) {
       await SqliteService.instance.clearMensagensChat(uid);
+    }
+    await SqliteService.instance.clearMensagensChat('local_user');
+    await SqliteService.instance.clearAllMensagensChat();
+
+    // 2. Limpa definitivamente no Supabase remoto
+    if (uid != null) {
       try {
         await _client.from('conversacao_xeni').delete().eq('id_utilizador', uid);
       } catch (e) {
         debugPrint('Erro ao apagar histórico remoto no Supabase: $e');
+        rethrow;
       }
-    } else {
-      await SqliteService.instance.clearMensagensChat('local_user');
-      await SqliteService.instance.clearAllMensagensChat();
     }
   }
 }

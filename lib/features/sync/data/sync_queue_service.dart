@@ -121,6 +121,9 @@ class SyncQueueService {
 
   Future<int> pendingCount() async => await _sqlite.getPendingSyncCount();
 
+  Future<int> pendingDenunciasCount() async =>
+      await _sqlite.getPendingSyncCount(tipoOperacao: SyncOperationType.denuncia.name);
+
   Future<List<Map<String, dynamic>>> getPendingItems() async =>
       await _sqlite.getPendingSyncItems();
 
@@ -128,6 +131,10 @@ class SyncQueueService {
 
   /// Processa todos os itens pendentes na fila
   Future<int> flush({bool forceResetTentativas = false}) async {
+    if (forceResetTentativas) {
+      await _sqlite.resetFailedSyncItems();
+    }
+
     final items = await _sqlite.getPendingSyncItems();
     if (items.isEmpty) return 0;
 
@@ -223,11 +230,12 @@ class SyncQueueService {
           // Erro de rede: interrompe o loop para tentar novamente quando houver internet
           break;
         } else {
-          // Erro estrutural: incrementa tentativas
+          // Erro estrutural: incrementa tentativas. Se exceder limite, marca como falhado para evitar falsos positivos
+          final newTentativas = tentativas + 1;
           await _sqlite.updateSyncItemStatus(
             idItem: idItem,
-            status: 'pendente',
-            tentativas: tentativas + 1,
+            status: newTentativas >= 4 ? 'falhado' : 'pendente',
+            tentativas: newTentativas,
             ultimoErro: errorStr,
           );
         }

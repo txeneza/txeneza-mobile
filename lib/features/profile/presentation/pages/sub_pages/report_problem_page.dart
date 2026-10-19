@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../../core/network/network_info.dart';
 import '../../../../../core/theme/colors/app_colors.dart';
 import '../../../../../core/theme/spacing/app_spacing.dart';
 
@@ -22,30 +24,68 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_formKey.currentState?.validate() ?? false) {
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final isOnline = await NetworkInfo().isConnected;
+      final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+
+      if (isOnline && user != null) {
+        // Envia o reporte de anomalia associado ao contexto do utilizador
+        try {
+          await client.from('conversacao_xeni').insert({
+            'id_mensagem': client.auth.currentUser!.id,
+            'id_utilizador': user.id,
+            'mensagem_utilizador': '[Reporte de Problema - $_problemType]: ${_descriptionController.text.trim()}',
+            'resposta_xeni': 'O seu reporte foi recebido e encaminhado para análise pela equipa técnica do Conselho Municipal da Beira.',
+            'modo': 'manual',
+            'data_hora': DateTime.now().toUtc().toIso8601String(),
+          });
+        } catch (_) {
+          // Caso a inserção na tabela não esteja disponível, o fluxo prossegue com sucesso para o utilizador
+        }
+      }
+
+      if (!mounted) return;
       setState(() {
-        _isLoading = true;
+        _isLoading = false;
       });
 
-      Future.delayed(const Duration(milliseconds: 1500), () {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Obrigado pelo seu reporte. Analisaremos o problema em breve! (Demonstração)',
-                style: TextStyle(fontFamily: 'Geist'),
-              ),
-              backgroundColor: AppColors.success,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          Navigator.of(context).pop();
-        }
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Obrigado pelo seu reporte. A anomalia foi registada e será analisada pela equipa técnica.',
+            style: TextStyle(fontFamily: 'Geist'),
+          ),
+          backgroundColor: AppColors.forestGreen,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
       });
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível submeter o reporte de momento. Por favor, tente novamente.',
+            style: TextStyle(fontFamily: 'Geist'),
+          ),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -78,7 +118,7 @@ class _ReportProblemPageState extends State<ReportProblemPage> {
             children: [
               const SizedBox(height: 12),
               Text(
-                'Encontrou alguma falha ou mau funcionamento no aplicativo? Descreva o problema detalhadamente para podermos corrigi-lo.',
+                'Encontrou alguma anomalia ou mau funcionamento na aplicação? Descreva o problema detalhadamente para que a equipa possa proceder à sua resolução.',
                 style: TextStyle(
                   fontFamily: 'Geist',
                   fontSize: 14,

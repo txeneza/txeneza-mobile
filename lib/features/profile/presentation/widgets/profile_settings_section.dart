@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../app.dart'; // import themeProvider
 import '../../../../core/config/routes/app_routes.dart';
+import '../../../../core/services/auth_provider_resolver.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../../core/theme/spacing/app_spacing.dart';
@@ -79,15 +80,21 @@ class ProfileSettingsSection extends StatelessWidget {
                 ),
               ),
               _divider(isDark),
-  
-              // Alterar Password
-              _buildNavTile(
-                context: context,
-                icon: LucideIcons.lock,
-                title: 'Alterar Password',
-                iconColor: iconColor,
-                isDark: isDark,
-                onTap: () => Navigator.of(context).pushNamed(AppRoutes.changePassword),
+
+              // Alterar ou Definir Palavra-passe conforme o fornecedor
+              Builder(
+                builder: (context) {
+                  final isGoogleOnly = AuthProviderResolver.isGoogleOnly();
+                  return _buildNavTile(
+                    context: context,
+                    icon: isGoogleOnly ? LucideIcons.keyRound : LucideIcons.lock,
+                    title: isGoogleOnly ? 'Definir Palavra-passe' : 'Alterar Palavra-passe',
+                    subtitle: isGoogleOnly ? 'Conta associada à Google' : null,
+                    iconColor: iconColor,
+                    isDark: isDark,
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.changePassword),
+                  );
+                },
               ),
               _divider(isDark),
   
@@ -122,6 +129,7 @@ class ProfileSettingsSection extends StatelessWidget {
     required BuildContext context,
     required IconData icon,
     required String title,
+    String? subtitle,
     required Color iconColor,
     required bool isDark,
     required VoidCallback onTap,
@@ -138,6 +146,16 @@ class ProfileSettingsSection extends StatelessWidget {
           color: isDark ? Colors.white : AppColors.grey900,
         ),
       ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12,
+                color: isDark ? AppColors.grey400 : AppColors.grey600,
+              ),
+            )
+          : null,
       trailing: Icon(LucideIcons.chevronRight, size: 16, color: iconColor),
       onTap: onTap,
     );

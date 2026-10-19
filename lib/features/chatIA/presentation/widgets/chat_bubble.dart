@@ -17,12 +17,28 @@ class ChatBubble extends StatelessWidget {
   /// Caminho de uma imagem real anexada (foto da ocorrência), se existir.
   final String? imagePath;
 
+  /// Indica se esta resposta é uma classificação de resíduo que permite submeter denúncia.
+  final bool canReport;
+
+  /// Caminho do ficheiro de imagem associado para submissão da denúncia.
+  final String? reportImagePath;
+
+  /// Ação invocada ao selecionar 'Enviar Denúncia'.
+  final VoidCallback? onReport;
+
+  /// Ação invocada ao selecionar 'Saber mais sobre o resíduo'.
+  final VoidCallback? onLearnMore;
+
   const ChatBubble({
     super.key,
     required this.text,
     required this.isUser,
     required this.time,
     this.imagePath,
+    this.canReport = false,
+    this.reportImagePath,
+    this.onReport,
+    this.onLearnMore,
   });
 
   void _copyToClipboard(BuildContext context) {
@@ -47,7 +63,7 @@ class ChatBubble extends StatelessWidget {
       child: Container(
         margin: const EdgeInsets.only(bottom: AppSpacing.md),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
+          maxWidth: MediaQuery.of(context).size.width * 0.85,
         ),
         child: Column(
           crossAxisAlignment:
@@ -171,6 +187,95 @@ class ChatBubble extends StatelessWidget {
                             ),
                           ),
                         ),
+
+                  // Cartão interativo para submeter como denúncia ou tirar mais dúvidas
+                  if (!isUser && canReport && reportImagePath != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.grey900.withValues(alpha: 0.5)
+                            : AppColors.mintGreen.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? AppColors.forestGreen.withValues(alpha: 0.4)
+                              : AppColors.sageGreen.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(LucideIcons.sparkles,
+                                  size: 15, color: AppColors.forestGreen),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Pretende reportar esta situação?',
+                                  style: TextStyle(
+                                    fontFamily: 'Geist',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : AppColors.forestGreen,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          ElevatedButton.icon(
+                            icon: const Icon(LucideIcons.camera, size: 16),
+                            label: const Text(
+                              'Enviar Denúncia',
+                              style: TextStyle(
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.forestGreen,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: onReport,
+                          ),
+                          const SizedBox(height: 6),
+                          OutlinedButton.icon(
+                            icon: const Icon(LucideIcons.helpCircle, size: 15),
+                            label: const Text(
+                              'Saber mais sobre este resíduo',
+                              style: TextStyle(
+                                fontFamily: 'Geist',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor:
+                                  isDark ? AppColors.grey300 : AppColors.grey800,
+                              side: BorderSide(
+                                color: isDark ? Colors.white24 : AppColors.grey300,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: onLearnMore,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   AppSpacing.verticalSpaceXXS,
 
                   Row(

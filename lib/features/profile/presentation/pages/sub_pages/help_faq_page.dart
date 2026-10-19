@@ -13,24 +13,24 @@ class HelpFaqPage extends StatelessWidget {
 
     final faqItems = [
       {
-        'q': 'Como posso fazer uma denúncia?',
-        'a': 'Para fazer uma denúncia, basta ir à aba "Início" (Mapa), clicar no botão flutuante "Denunciar", tirar uma fotografia do foco de lixo, adicionar uma descrição opcional e submeter. O local será registrado automaticamente pelo GPS.'
+        'q': 'Como posso submeter uma denúncia de resíduos?',
+        'a': 'Para submeter uma denúncia, basta aceder ao separador "Início" (Mapa), tocar no botão flutuante da câmara, captar uma fotografia focada no foco de lixo, adicionar uma descrição informativa e confirmar. A localização geográfica exata é calculada automaticamente através do GPS do dispositivo.'
       },
       {
-        'q': 'O que acontece após eu enviar uma denúncia?',
-        'a': 'A sua denúncia é marcada no mapa municipal e enviada para a equipe de limpeza urbana da Cidade da Beira. O estado da denúncia mudará de "Pendente" para "Resolvido" assim que a recolha e limpeza do local forem concluídas.'
+        'q': 'O que acontece após o envio de uma denúncia?',
+        'a': 'A sua denúncia é registada na base de dados municipal e encaminhada para a equipa de limpeza urbana e saneamento da Cidade da Beira. O estado da ocorrência é atualizado de "Pendente" para "Resolvida" assim que as operações de recolha forem finalizadas.'
       },
       {
-        'q': 'Como ganho pontos e medalhas (badges)?',
-        'a': 'Você ganha pontos ao submeter denúncias válidas que ajudam a equipe municipal. Conforme acumula pontos, o seu nível aumenta. Medalhas específicas (como "Guardião Verde") são concedidas ao atingir marcos de denúncias resolvidas.'
+        'q': 'Como funciona a verificação fotográfica de resolução?',
+        'a': 'Quando os serviços municipais concluem a limpeza no local reportado, anexam uma fotografia de comprovação. O morador recebe uma notificação na aplicação e pode comparar as fotografias de antes e depois, aprovando a resolução ou contestando caso o problema subsista.'
       },
       {
-        'q': 'O aplicativo funciona sem acesso à internet?',
-        'a': 'Sim! O Txeneza possui um modo offline completo. Se estiver offline, pode criar e salvar as suas denúncias localmente no dispositivo. Elas serão sincronizadas automaticamente assim que recuperar a ligação à internet.'
+        'q': 'A aplicação funciona sem ligação à internet?',
+        'a': 'Sim. O Txeneza dispõe de uma arquitetura offline completa. Caso esteja sem rede, as denúncias e ações são guardadas com segurança no armazenamento local do dispositivo e sincronizadas de forma automática assim que a ligação à internet for restabelecida.'
       },
       {
-        'q': 'Como posso alterar a minha localização residencial/bairro?',
-        'a': 'Pode alterar o seu bairro a qualquer momento acedendo ao seu Perfil, clicando na lista de seleção "Bairro" sob o cartão de dados pessoais e salvando as alterações.'
+        'q': 'Como posso atualizar o meu bairro de residência?',
+        'a': 'Pode alterar o seu bairro a qualquer momento acedendo ao separador Perfil, selecionando o novo bairro na lista oficial dos 31 bairros da Beira e premindo o botão para guardar as alterações.'
       },
     ];
 
@@ -63,7 +63,7 @@ class HelpFaqPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Encontre respostas rápidas para as dúvidas mais comuns sobre o uso do aplicativo Txeneza.',
+            'Consulte as respostas para as dúvidas mais comuns sobre o funcionamento da plataforma Txeneza.',
             style: TextStyle(
               fontFamily: 'Geist',
               fontSize: 14,

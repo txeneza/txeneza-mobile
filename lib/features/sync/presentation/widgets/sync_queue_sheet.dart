@@ -1,12 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../../../../core/network/network_info.dart';
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
 import '../../../denuncia/data/denuncia_queue.dart';
 import '../../../denuncia/domain/denuncia_draft.dart';
+import '../../data/sync_queue_service.dart';
 
 /// Modal para listar e forçar a sincronização de denúncias guardadas no dispositivo (RF-012, RF-013).
 class SyncQueueSheet extends StatefulWidget {
@@ -46,16 +49,47 @@ class _SyncQueueSheetState extends State<SyncQueueSheet> {
 
   Future<void> _loadPending() async {
     setState(() => _isLoading = true);
-    final list = await _queue.pending();
+    final List<DenunciaDraft> combined = [];
+    final Set<String> seenIds = {};
+
+    try {
+      final queueDrafts = await _queue.pending();
+      for (final draft in queueDrafts) {
+        if (draft.tentativas < 3) {
+          seenIds.add(draft.id);
+          combined.add(draft);
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final syncItems = await SyncQueueService.instance.getPendingItems();
+      for (final item in syncItems) {
+        if (item['tipo_operacao'] == SyncOperationType.denuncia.name) {
+          final payloadStr = item['payload_json'] as String;
+          final map = jsonDecode(payloadStr) as Map<String, dynamic>;
+          final draft = DenunciaDraft.fromJson(map);
+          final tentativas = (item['tentativas'] as int?) ?? 0;
+          if (!seenIds.contains(draft.id) && tentativas < 4) {
+            seenIds.add(draft.id);
+            combined.add(draft);
+          }
+        }
+      }
+    } catch (_) {}
+
     if (!mounted) return;
     setState(() {
-      _pendingDrafts = list;
+      _pendingDrafts = combined;
       _isLoading = false;
     });
   }
 
   Future<void> _syncNow() async {
-    if (!widget.isOnline) {
+    final hasRealInternet = await NetworkInfo().isConnected;
+    if (!hasRealInternet) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Sem ligação à internet para sincronizar.', style: TextStyle(fontFamily: 'Geist')),
@@ -67,21 +101,24 @@ class _SyncQueueSheetState extends State<SyncQueueSheet> {
     }
 
     setState(() => _isSyncing = true);
-    final count = await _queue.flush(forceResetTentativas: true);
-    if (!mounted) return;
+    final count1 = await _queue.flush(forceResetTentativas: true);
+    final count2 = await SyncQueueService.instance.flush(forceResetTentativas: true);
+    final totalSynced = count1 + count2;
 
+    if (!mounted) return;
     setState(() => _isSyncing = false);
     widget.onQueueUpdated?.call();
 
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          count > 0
-              ? '$count denúncia(s) sincronizada(s) com sucesso!'
-              : 'Nenhuma denúncia sincronizada. Tente novamente mais tarde.',
+          totalSynced > 0
+              ? '$totalSynced denúncia(s) sincronizada(s) com sucesso!'
+              : 'Nenhuma denúncia pendente para sincronizar.',
           style: const TextStyle(fontFamily: 'Geist'),
         ),
-        backgroundColor: count > 0 ? AppColors.success : AppColors.warning,
+        backgroundColor: totalSynced > 0 ? AppColors.forestGreen : AppColors.warning,
         behavior: SnackBarBehavior.floating,
       ),
     );

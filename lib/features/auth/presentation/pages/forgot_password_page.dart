@@ -185,6 +185,41 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 )
                               : const Text('Enviar Instruções'),
                         ),
+
+                        // Nota informativa para contas Google
+                        const SizedBox(height: 24),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.white.withValues(alpha: 0.04) : AppColors.grey100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.grey200,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                LucideIcons.info,
+                                size: 18,
+                                color: isDark ? AppColors.grey300 : AppColors.grey600,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Se registou a sua conta através da Google, não necessita de redefinir a palavra-passe. Regresse ao ecrã inicial e utilize a opção "Continuar com a Google".',
+                                  style: TextStyle(
+                                    fontFamily: 'Geist',
+                                    fontSize: 12,
+                                    height: 1.4,
+                                    color: isDark ? AppColors.grey300 : AppColors.grey600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ] else ...[
                         // Success State Card
                         Container(

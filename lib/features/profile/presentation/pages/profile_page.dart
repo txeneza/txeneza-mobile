@@ -212,85 +212,91 @@ class _ProfilePageState extends State<ProfilePage> {
 
         return _scaffold(
           isDark,
-          SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!widget.isOnline)
-                  Container(
-                    color: isDark 
-                        ? const Color(0xFF3E2723)
-                        : const Color(0xFFFFF3E0),
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          LucideIcons.wifiOff, 
-                          size: 14, 
-                          color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Modo offline · A visualizar dados locais',
-                          style: TextStyle(
-                            fontFamily: 'Geist',
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+          RefreshIndicator(
+            color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+            onRefresh: () => _controller.loadProfile(isRefresh: true),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!widget.isOnline)
+                    Container(
+                      color: isDark 
+                          ? const Color(0xFF3E2723)
+                          : const Color(0xFFFFF3E0),
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            LucideIcons.wifiOff, 
+                            size: 14, 
                             color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ProfileHeader(
-                  fullName: profile.fullName,
-                  isVerified: profile.isVerified,
-                ),
-                const SizedBox(height: 20),
-                ProfileInfoCard(
-                  profile: profile,
-                  isUpdating: isUpdating,
-                  isOnline: widget.isOnline,
-                  onSave: (fullName, phoneNumber, neighborhood) async {
-                    final success = await _controller.updateProfile(
-                      fullName: fullName,
-                      phoneNumber: phoneNumber,
-                      neighborhood: neighborhood,
-                    );
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          success
-                              ? 'Perfil atualizado com sucesso.'
-                              : 'Erro ao atualizar dados. Tente novamente.',
-                          style: const TextStyle(fontFamily: 'Geist'),
-                        ),
-                        backgroundColor:
-                            success ? AppColors.success : AppColors.error,
-                        behavior: SnackBarBehavior.floating,
+                          const SizedBox(width: 8),
+                          Text(
+                            'Modo offline · A visualizar dados locais',
+                            style: TextStyle(
+                              fontFamily: 'Geist',
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFE65100),
+                            ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-                ProfileStatsGrid(
-                  reportsSubmitted: stats.submitted,
-                  reportsResolved: stats.resolved,
-                  reportsPending: stats.pending,
-                ),
-                const SizedBox(height: 16),
-                const ProfileQuickAccess(),
-                const SizedBox(height: 16),
-                const ProfileSettingsSection(),
-                const SizedBox(height: 16),
-                const ProfileSupportSection(),
-                const SizedBox(height: 16),
-                _sessionButtons(isDark),
-                const SizedBox(height: AppSpacing.xxxl),
-              ],
+                    ),
+                  ProfileHeader(
+                    fullName: profile.fullName,
+                    isVerified: profile.isVerified,
+                  ),
+                  const SizedBox(height: 20),
+                  ProfileInfoCard(
+                    profile: profile,
+                    isUpdating: isUpdating,
+                    isOnline: widget.isOnline,
+                    onSave: (fullName, phoneNumber, neighborhood) async {
+                      final success = await _controller.updateProfile(
+                        fullName: fullName,
+                        phoneNumber: phoneNumber,
+                        neighborhood: neighborhood,
+                      );
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            success
+                                ? 'Perfil atualizado com sucesso.'
+                                : 'Erro ao atualizar dados. Tente novamente.',
+                            style: const TextStyle(fontFamily: 'Geist'),
+                          ),
+                          backgroundColor:
+                              success ? AppColors.success : AppColors.error,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  ProfileStatsGrid(
+                    reportsSubmitted: stats.submitted,
+                    reportsResolved: stats.resolved,
+                    reportsPending: stats.pending,
+                  ),
+                  const SizedBox(height: 16),
+                  const ProfileQuickAccess(),
+                  const SizedBox(height: 16),
+                  const ProfileSettingsSection(),
+                  const SizedBox(height: 16),
+                  const ProfileSupportSection(),
+                  const SizedBox(height: 16),
+                  _sessionButtons(isDark),
+                  const SizedBox(height: AppSpacing.xxxl),
+                ],
+              ),
             ),
           ),
         );

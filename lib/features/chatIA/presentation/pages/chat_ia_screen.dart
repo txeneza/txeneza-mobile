@@ -13,6 +13,7 @@ import '../../data/conversacao_datasource.dart';
 import '../../data/services/gemini_service.dart';
 import '../../data/user_context_service.dart';
 import '../../data/xeni_offline_interactive.dart';
+import '../../../denuncia/presentation/denuncia_capture_page.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/image_analysis_modal.dart';
 import '../widgets/typing_indicator.dart';
@@ -40,16 +41,16 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
   bool _isTyping = false;
   final List<Map<String, dynamic>> _messages = [
     {
-      'text': 'Olá! Eu sou a Xeni, sua Assistente de Inteligência Municipal Txeneza. Estou pronta para processar denúncias de resíduos e responder a dúvidas sobre saneamento e coleta seletiva na cidade da Beira. Como posso ajudar você hoje?',
+      'text': 'Olá! Eu sou a Xeni, a tua Assistente Municipal Txeneza. Estou disponível para tirar dúvidas sobre a app, indicar ecopontos e orientar-te em denúncias de resíduos na Cidade da Beira. Como posso ajudar hoje?',
       'isUser': false,
       'time': 'Agora',
     }
   ];
 
   final List<String> _suggestions = [
-    'Como separar resíduos recicláveis?',
-    'Quais são os pontos de coleta na Beira?',
-    'Tempo de resposta para denúncias',
+    'Como fazer uma denúncia passo a passo?',
+    'Onde estão os ecopontos oficiais na Beira?',
+    'Como funciona a fila offline e o mapa?',
   ];
 
   List<XeniOfflineOption> _currentOfflineOptions = XeniOfflineInteractive.mainMenuOptions;
@@ -107,7 +108,7 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     setState(() {
       _messages.clear();
       _messages.add({
-        'text': 'Olá! Eu sou a Xeni, sua Assistente de Inteligência Municipal Txeneza. Estou pronta para processar denúncias de resíduos e responder a dúvidas sobre saneamento e coleta seletiva na cidade da Beira. Como posso ajudar você hoje?',
+        'text': 'Olá! Eu sou a Xeni, a tua Assistente Municipal Txeneza. Estou disponível para tirar dúvidas sobre a app, indicar ecopontos e orientar-te em denúncias de resíduos na Cidade da Beira. Como posso ajudar hoje?',
         'isUser': false,
         'time': 'Agora',
       });
@@ -325,11 +326,17 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     }
   }
 
-  Future<void> _simulateTypewriter(String fullText) async {
+  Future<void> _simulateTypewriter(
+    String fullText, {
+    bool canReport = false,
+    String? reportImagePath,
+  }) async {
     final Map<String, dynamic> botMessage = {
       'text': '',
       'isUser': false,
       'time': 'Agora',
+      'canReport': canReport,
+      'reportImagePath': reportImagePath,
     };
 
     setState(() {
@@ -369,6 +376,35 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     return completer.future;
   }
 
+  Future<void> _abrirFluxoDenuncia(String imagePath) async {
+    final result = await Navigator.of(context).push<DenunciaResult>(
+      MaterialPageRoute(
+        builder: (_) => DenunciaCapturePage(
+          isOnline: _isOnline,
+          initialImagePath: imagePath,
+        ),
+      ),
+    );
+
+    if (!mounted || result == null) return;
+
+    if (result == DenunciaResult.sentOnline) {
+      await _simulateTypewriter(
+        'Excelente notícia! A tua denúncia foi submetida com sucesso ao Município da Beira e já está visível no mapa para acompanhamento.',
+      );
+    } else if (result == DenunciaResult.queuedOffline) {
+      await _simulateTypewriter(
+        'A tua denúncia foi guardada no telemóvel com segurança e será sincronizada automaticamente assim que tiveres ligação à internet.',
+      );
+    }
+  }
+
+  void _perguntarMaisSobreResiduo(String textoClassificacao) {
+    _sendMessage(
+      'Podes explicar-me mais sobre o impacto ambiental deste resíduo, o seu tempo de decomposição e como o Txeneza colabora no seu tratamento na Cidade da Beira?',
+    );
+  }
+
   void _openImageSelectionModal() {
     showModalBottomSheet(
       context: context,
@@ -389,8 +425,12 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
             });
             _scrollToBottom();
 
-            // Resposta de classificação da Xeni com efeito de digitação.
-            await _simulateTypewriter(analysisResult);
+            // Resposta de classificação da Xeni com efeito de digitação e botão de denúncia habilitado.
+            await _simulateTypewriter(
+              analysisResult,
+              canReport: true,
+              reportImagePath: imagePath,
+            );
 
             // Persiste no histórico (a imagem em si não é guardada nesta tabela).
             _conversacao.save(
@@ -449,11 +489,20 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                     }
 
                     final msg = _messages[index];
+                    final canReport = msg['canReport'] == true;
+                    final reportImagePath = msg['reportImagePath'] as String?;
+
                     return ChatBubble(
                       text: msg['text'],
                       isUser: msg['isUser'],
                       time: msg['time'],
                       imagePath: msg['imagePath'],
+                      canReport: canReport,
+                      reportImagePath: reportImagePath,
+                      onReport: reportImagePath != null
+                          ? () => _abrirFluxoDenuncia(reportImagePath)
+                          : null,
+                      onLearnMore: () => _perguntarMaisSobreResiduo(msg['text'] as String? ?? ''),
                     );
                   },
                 ),
