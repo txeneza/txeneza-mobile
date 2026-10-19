@@ -31,16 +31,16 @@ class ProfileUserModel extends UserEntity {
     );
   }
 
-  /// [json] é uma linha da tabela "utilizador" do Supabase.
+  /// [json] é uma linha da tabela "utilizador" do Supabase ou mapa da cache local.
   factory ProfileUserModel.fromJson(Map<String, dynamic> json) {
     return ProfileUserModel(
-      id: json['id_utilizador'] as String,
-      fullName: json['nome'] as String? ?? '',
-      email: json['email'] as String? ?? '',
-      phoneNumber: json['telefone'] as String? ?? '',
-      neighborhood: json['bairro'] as String? ?? '',
-      token: json['token'] as String?,
-      isVerified: json['estado'] == 'activo',
+      id: (json['id_utilizador'] ?? json['id'] ?? '').toString(),
+      fullName: (json['nome'] ?? json['full_name'] ?? json['name'] ?? '').toString(),
+      email: (json['email'] ?? '').toString(),
+      phoneNumber: (json['telefone'] ?? json['phone'] ?? '').toString(),
+      neighborhood: (json['bairro'] ?? json['neighborhood'] ?? '').toString(),
+      token: json['token']?.toString(),
+      isVerified: json['estado'] == 'activo' || json['is_verified'] == true,
     );
   }
 

@@ -19,7 +19,12 @@ import '../widgets/profile_settings_section.dart';
 
 class ProfilePage extends StatefulWidget {
   final bool isOnline;
-  const ProfilePage({super.key, this.isOnline = true});
+  final bool isActive;
+  const ProfilePage({
+    super.key,
+    this.isOnline = true,
+    this.isActive = true,
+  });
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -33,6 +38,17 @@ class _ProfilePageState extends State<ProfilePage> {
     super.initState();
     _controller = ProfileController(repository: ProfileRepositoryImpl());
     _controller.loadProfile();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((!oldWidget.isActive && widget.isActive) ||
+        (oldWidget.isOnline != widget.isOnline && widget.isOnline)) {
+      if (_controller.state is! ProfileLoaded) {
+        _controller.loadProfile(isRefresh: true);
+      }
+    }
   }
 
   @override

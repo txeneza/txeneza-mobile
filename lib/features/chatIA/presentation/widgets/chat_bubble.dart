@@ -145,7 +145,7 @@ class ChatBubble extends StatelessWidget {
                         )
                       : MarkdownBody(
                           data: text,
-                          selectable: true,
+                          selectable: false,
                           styleSheet: MarkdownStyleSheet(
                             p: TextStyles.captionLarge.copyWith(
                               color: isDark ? AppColors.white : AppColors.grey900,

@@ -19,7 +19,8 @@ import '../widgets/image_analysis_modal.dart';
 import '../widgets/typing_indicator.dart';
 
 class ChatIAScreen extends StatefulWidget {
-  const ChatIAScreen({super.key});
+  final bool isActive;
+  const ChatIAScreen({super.key, this.isActive = true});
 
   @override
   State<ChatIAScreen> createState() => _ChatIAScreenState();
@@ -62,6 +63,14 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     _loadHistory();
     _loadUserContext();
     _connectivitySubscription = NetworkInfo().onConnectivityChanged.listen(_updateConnectionStatus);
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatIAScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      _scrollToBottom();
+    }
   }
 
   /// Busca uma vez, ao abrir o chat, um resumo do utilizador (nome +
@@ -347,8 +356,9 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
     int charIndex = 0;
     final int totalLength = fullText.length;
     const int chunkSize = 6;
+    bool autoScrollEnabled = true;
 
-    Timer.periodic(const Duration(milliseconds: 18), (timer) {
+    Timer.periodic(const Duration(milliseconds: 22), (timer) {
       if (!mounted) {
         timer.cancel();
         if (!completer.isCompleted) completer.complete();
@@ -364,7 +374,17 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
       });
 
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        final pos = _scrollController.position;
+        // Se o utilizador subiu para consultar mensagens anteriores, respeita a posição
+        if (pos.pixels < (pos.maxScrollExtent - 120)) {
+          autoScrollEnabled = false;
+        } else if (pos.pixels >= (pos.maxScrollExtent - 60)) {
+          autoScrollEnabled = true;
+        }
+
+        if (autoScrollEnabled) {
+          _scrollController.jumpTo(pos.maxScrollExtent);
+        }
       }
 
       if (isFinished) {
@@ -481,7 +501,10 @@ class _ChatIAScreenState extends State<ChatIAScreen> {
                 child: ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
-                  physics: const BouncingScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                   itemCount: _messages.length + (_isTyping ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (index == _messages.length && _isTyping) {

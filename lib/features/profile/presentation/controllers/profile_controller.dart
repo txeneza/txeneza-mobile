@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../data/models/profile_user_model.dart';
 import '../../domain/profile_stats.dart';
 import '../../domain/repositories/profile_repository.dart';
 import 'profile_state.dart';
@@ -14,18 +15,23 @@ class ProfileController extends ChangeNotifier {
   }) : _repository = repository;
 
   Future<void> loadProfile({bool isRefresh = false}) async {
-    // 1. Estratégia First Offline: Leitura imediata (0ms) do Hive L1 / SQLite L2
-    if (!isRefresh) {
-      final cachedProfile = await _repository.getCachedProfile();
-      final cachedStats = await _repository.getCachedStats();
+    ProfileUserModel? cachedProfile;
+    ProfileStats? cachedStats;
 
-      if (cachedProfile != null) {
-        _state = ProfileLoaded(cachedProfile, cachedStats ?? ProfileStats.empty);
-        notifyListeners();
-      } else {
-        _state = const ProfileLoading();
-        notifyListeners();
-      }
+    try {
+      cachedProfile = await _repository.getCachedProfile();
+      cachedStats = await _repository.getCachedStats();
+    } catch (e) {
+      debugPrint('Erro ao obter perfil da cache: $e');
+    }
+
+    // 1. Se temos perfil em cache ou sessão, exibe imediatamente (0ms)
+    if (cachedProfile != null) {
+      _state = ProfileLoaded(cachedProfile, cachedStats ?? ProfileStats.empty);
+      notifyListeners();
+    } else if (!isRefresh) {
+      _state = const ProfileLoading();
+      notifyListeners();
     }
 
     // 2. Revalidação em segundo plano no Supabase
@@ -35,8 +41,15 @@ class ProfileController extends ChangeNotifier {
       _state = ProfileLoaded(freshProfile, freshStats);
       notifyListeners();
     } catch (e) {
+      debugPrint('Erro ao buscar perfil remoto: $e');
       if (_state is! ProfileLoaded) {
-        _state = ProfileError(e.toString().replaceAll('Exception: ', ''));
+        // Tenta mais um fallback seguro para nunca deixar o utilizador preso em loading
+        final fallback = await _repository.getCachedProfile();
+        if (fallback != null) {
+          _state = ProfileLoaded(fallback, cachedStats ?? ProfileStats.empty);
+        } else {
+          _state = ProfileError(e.toString().replaceAll('Exception: ', ''));
+        }
         notifyListeners();
       }
     }

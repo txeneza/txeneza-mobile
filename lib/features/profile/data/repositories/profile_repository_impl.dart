@@ -25,78 +25,112 @@ class ProfileRepositoryImpl implements ProfileRepository {
 
   @override
   Future<ProfileUserModel?> getCachedProfile() async {
-    final user = _client.auth.currentUser;
-    if (user == null) return null;
-    final uid = user.id;
-    final hiveKey = 'profile_fast_$uid';
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return null;
+      final uid = user.id;
+      final hiveKey = 'profile_fast_$uid';
 
-    // 1. Hive L1 Fast Access (0ms na memória/disco)
-    final fastMap = CacheManager.instance.getFast<Map>(hiveKey);
-    if (fastMap != null) {
-      return ProfileUserModel.fromJson(Map<String, dynamic>.from(fastMap));
-    }
+      // 1. Hive L1 Fast Access (0ms na memória/disco)
+      try {
+        final fastMap = CacheManager.instance.getFast<Map>(hiveKey);
+        if (fastMap != null) {
+          final map = Map<String, dynamic>.from(fastMap);
+          if (!map.containsKey('id_utilizador') || map['id_utilizador'] == null) {
+            map['id_utilizador'] = uid;
+          }
+          final model = ProfileUserModel.fromJson(map);
+          if (model.id.isNotEmpty && model.fullName.isNotEmpty) {
+            return model;
+          }
+        }
+      } catch (e) {
+        // Fallback silencioso para SQLite
+      }
 
-    // 2. SQLite L2 Relacional
-    final sqliteRow = await SqliteService.instance.getPerfil(uid);
-    if (sqliteRow != null) {
-      final model = ProfileUserModel.fromJson(sqliteRow);
-      await CacheManager.instance.putFast(hiveKey, model.toJson());
-      return model;
-    }
+      // 2. SQLite L2 Relacional
+      try {
+        final sqliteRow = await SqliteService.instance.getPerfil(uid);
+        if (sqliteRow != null) {
+          final map = Map<String, dynamic>.from(sqliteRow);
+          if (!map.containsKey('id_utilizador') || map['id_utilizador'] == null) {
+            map['id_utilizador'] = uid;
+          }
+          final model = ProfileUserModel.fromJson(map);
+          await CacheManager.instance.putFast(hiveKey, model.toJson());
+          return model;
+        }
+      } catch (e) {
+        // Fallback silencioso para metadados
+      }
 
-    // 3. Fallback instantâneo: Metadados da sessão Auth ativa
-    final metadata = user.userMetadata ?? const <String, dynamic>{};
-    if (metadata.isNotEmpty || (user.email != null && user.email!.isNotEmpty)) {
-      final fallbackModel = ProfileUserModel(
-        id: uid,
-        fullName: (metadata['nome'] ?? metadata['full_name'] ?? metadata['name'] ?? '') as String,
-        email: user.email ?? '',
-        phoneNumber: (metadata['telefone'] ?? '') as String,
-        neighborhood: (metadata['bairro'] ?? '') as String,
-        token: _client.auth.currentSession?.accessToken,
-        isVerified: true,
-      );
-      await CacheManager.instance.putFast(hiveKey, fallbackModel.toJson());
-      return fallbackModel;
-    }
+      // 3. Fallback instantâneo: Metadados da sessão Auth ativa
+      try {
+        final metadata = user.userMetadata ?? const <String, dynamic>{};
+        final fullName = (metadata['nome'] ??
+                metadata['full_name'] ??
+                metadata['name'] ??
+                user.email?.split('@').first ??
+                'Utilizador')
+            .toString();
+
+        final fallbackModel = ProfileUserModel(
+          id: uid,
+          fullName: fullName,
+          email: user.email ?? '',
+          phoneNumber: (metadata['telefone'] ?? '').toString(),
+          neighborhood: (metadata['bairro'] ?? '').toString(),
+          token: _client.auth.currentSession?.accessToken,
+          isVerified: true,
+        );
+        await CacheManager.instance.putFast(hiveKey, fallbackModel.toJson());
+        return fallbackModel;
+      } catch (_) {}
+    } catch (_) {}
 
     return null;
   }
 
   @override
   Future<ProfileStats?> getCachedStats() async {
-    final user = _client.auth.currentUser;
-    if (user == null) return null;
-    final uid = user.id;
-    final hiveKey = 'stats_fast_$uid';
+    try {
+      final user = _client.auth.currentUser;
+      if (user == null) return null;
+      final uid = user.id;
+      final hiveKey = 'stats_fast_$uid';
 
-    final pendingOffline = await _getPendingSyncReports();
-    final offlineCount = pendingOffline.length;
+      final pendingOffline = await _getPendingSyncReports();
+      final offlineCount = pendingOffline.length;
 
-    // 1. Hive L1 Fast Access
-    final fastStats = CacheManager.instance.getFast<Map>(hiveKey);
-    if (fastStats != null) {
-      final base = ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
-      return ProfileStats(
-        submitted: base.submitted + offlineCount,
-        resolved: base.resolved,
-        pending: base.pending + offlineCount,
-      );
-    }
+      // 1. Hive L1 Fast Access
+      try {
+        final fastStats = CacheManager.instance.getFast<Map>(hiveKey);
+        if (fastStats != null) {
+          final base = ProfileStats.fromJson(Map<String, dynamic>.from(fastStats));
+          return ProfileStats(
+            submitted: base.submitted + offlineCount,
+            resolved: base.resolved,
+            pending: base.pending + offlineCount,
+          );
+        }
+      } catch (_) {}
 
-    // 2. SQLite L2 rápido a partir das ocorrências salvas localmente
-    final localRows = await SqliteService.instance.getOcorrencias(uid);
-    if (localRows.isNotEmpty || offlineCount > 0) {
-      final submitted = localRows.length + offlineCount;
-      final resolved = localRows.where((r) => r['estado'] == 'resolvida').length;
-      final stats = ProfileStats(
-        submitted: submitted,
-        resolved: resolved,
-        pending: submitted - resolved,
-      );
-      await CacheManager.instance.putFast(hiveKey, stats.toJson());
-      return stats;
-    }
+      // 2. SQLite L2 rápido a partir das ocorrências salvas localmente
+      try {
+        final localRows = await SqliteService.instance.getOcorrencias(uid);
+        if (localRows.isNotEmpty || offlineCount > 0) {
+          final submitted = localRows.length + offlineCount;
+          final resolved = localRows.where((r) => r['estado'] == 'resolvida').length;
+          final stats = ProfileStats(
+            submitted: submitted,
+            resolved: resolved,
+            pending: submitted - resolved,
+          );
+          await CacheManager.instance.putFast(hiveKey, stats.toJson());
+          return stats;
+        }
+      } catch (_) {}
+    } catch (_) {}
 
     return null;
   }
@@ -106,17 +140,41 @@ class ProfileRepositoryImpl implements ProfileRepository {
     final uid = _uid;
     final hiveKey = 'profile_fast_$uid';
 
-    final row = await _client
-        .from('utilizador')
-        .select()
-        .eq('id_utilizador', uid)
-        .single();
+    try {
+      final row = await _client
+          .from('utilizador')
+          .select()
+          .eq('id_utilizador', uid)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
 
-    final profile = ProfileUserModel.fromJson(row);
-    final map = profile.toJson();
-    await SqliteService.instance.savePerfil(map);
-    await CacheManager.instance.putFast(hiveKey, map);
-    return profile;
+      if (row != null) {
+        final profile = ProfileUserModel.fromJson(row);
+        final map = profile.toJson();
+        await SqliteService.instance.savePerfil(map);
+        await CacheManager.instance.putFast(hiveKey, map);
+        return profile;
+      }
+    } catch (e) {
+      // Falha de rede ou timeout: tenta recuperar o perfil em cache
+    }
+
+    final cached = await getCachedProfile();
+    if (cached != null) return cached;
+
+    final user = _client.auth.currentUser;
+    return ProfileUserModel(
+      id: uid,
+      fullName: (user?.userMetadata?['nome'] ??
+              user?.userMetadata?['full_name'] ??
+              user?.email?.split('@').first ??
+              'Utilizador')
+          .toString(),
+      email: user?.email ?? '',
+      phoneNumber: '',
+      neighborhood: '',
+      isVerified: true,
+    );
   }
 
   @override
@@ -130,7 +188,8 @@ class ProfileRepositoryImpl implements ProfileRepository {
       final rows = await _client
           .from('ocorrencia')
           .select('estado')
-          .eq('id_utilizador', uid);
+          .eq('id_utilizador', uid)
+          .timeout(const Duration(seconds: 5));
 
       final list = rows as List;
       final submitted = list.length + offlineCount;
@@ -146,7 +205,11 @@ class ProfileRepositoryImpl implements ProfileRepository {
     } catch (_) {
       final cached = await getCachedStats();
       if (cached != null) return cached;
-      rethrow;
+      return ProfileStats(
+        submitted: offlineCount,
+        resolved: 0,
+        pending: offlineCount,
+      );
     }
   }
 

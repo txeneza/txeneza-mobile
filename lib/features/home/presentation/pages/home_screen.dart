@@ -399,36 +399,48 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: IndexedStack(
                     index: _selectedBottomIndex,
                     children: [
-                      MapPage(
-                        occurrences: _occurrences,
-                        pontosRecolha: _showPontosRecolha ? _pontosRecolha : [],
-                        isOnline: _isOnline,
-                        onMapCreated: (mapbox.MapboxMap mapboxMap) => _mapboxMap = mapboxMap,
-                        currentScale: _currentScale,
-                        userLocation: _userLocation,
-                        isResolvingGps: _isResolvingGps,
-                        onScaleChanged: (scale) {
-                          setState(() {
-                            _currentScale = scale;
-                          });
-                        },
-                        onLocationPressed: _onLocationPressed,
-                        onReport: _onDenunciarPressed,
-                        onOccurrenceSelected: (occ) =>
-                            _animateMapTo(occ.position, 16.0),
-                        showPontosRecolha: _showPontosRecolha,
-                        onShowPontosRecolhaToggled: (val) {
-                          setState(() {
-                            _showPontosRecolha = val;
-                          });
-                        },
+                      IgnorePointer(
+                        ignoring: _selectedBottomIndex != 0,
+                        child: MapPage(
+                          occurrences: _occurrences,
+                          pontosRecolha: _showPontosRecolha ? _pontosRecolha : [],
+                          isOnline: _isOnline,
+                          onMapCreated: (mapbox.MapboxMap mapboxMap) => _mapboxMap = mapboxMap,
+                          currentScale: _currentScale,
+                          userLocation: _userLocation,
+                          isResolvingGps: _isResolvingGps,
+                          onScaleChanged: (scale) {
+                            setState(() {
+                              _currentScale = scale;
+                            });
+                          },
+                          onLocationPressed: _onLocationPressed,
+                          onReport: _onDenunciarPressed,
+                          onOccurrenceSelected: (occ) =>
+                              _animateMapTo(occ.position, 16.0),
+                          showPontosRecolha: _showPontosRecolha,
+                          onShowPontosRecolhaToggled: (val) {
+                            setState(() {
+                              _showPontosRecolha = val;
+                            });
+                          },
+                        ),
                       ),
 
                       // Tab 2: AI Assistant View
-                      const ChatIAScreen(),
+                      IgnorePointer(
+                        ignoring: _selectedBottomIndex != 1,
+                        child: ChatIAScreen(isActive: _selectedBottomIndex == 1),
+                      ),
 
                       // Tab 3: Profile View
-                      ProfilePage(isOnline: _isOnline),
+                      IgnorePointer(
+                        ignoring: _selectedBottomIndex != 2,
+                        child: ProfilePage(
+                          isOnline: _isOnline,
+                          isActive: _selectedBottomIndex == 2,
+                        ),
+                      ),
                     ],
                   ),
                 ),
