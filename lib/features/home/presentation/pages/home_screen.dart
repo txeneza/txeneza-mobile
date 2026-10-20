@@ -87,18 +87,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  @override
-  void dispose() {
-    _connectivitySubscription.cancel();
-    if (_ocorrenciasChannel != null) {
-      Supabase.instance.client.removeChannel(_ocorrenciasChannel!);
-    }
-    if (_notificacaoChannel != null) {
-      Supabase.instance.client.removeChannel(_notificacaoChannel!);
-    }
-    super.dispose();
-  }
-
   /// Lê as notificações e actualiza a contagem de não lidas mostrada no
   /// badge do sino. Falha em silêncio (mesmo cuidado que o resto do ecrã):
   /// sem rede, o badge simplesmente não actualiza, nunca quebra a home.
@@ -327,6 +315,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _connectivitySubscription.cancel();
+    if (_ocorrenciasChannel != null) {
+      Supabase.instance.client.removeChannel(_ocorrenciasChannel!);
+    }
     if (_notificacaoChannel != null) {
       Supabase.instance.client.removeChannel(_notificacaoChannel!);
     }
