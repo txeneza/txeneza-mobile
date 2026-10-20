@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -317,6 +318,8 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
     required bool isDark,
     bool isHighlight = false,
   }) {
+    final hasValidImage = url != null && url.trim().isNotEmpty;
+
     return Container(
       height: 160,
       decoration: BoxDecoration(
@@ -331,23 +334,103 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(13),
-        child: url != null && url.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: url,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+        child: hasValidImage
+            ? GestureDetector(
+                onTap: () => _showFullScreenImage(url, title),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _buildImageContent(url, title, isDark),
+                    Positioned(
+                      bottom: 6,
+                      right: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Icon(
+                          LucideIcons.maximize2,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-                errorWidget: (context, url, error) => _buildPlaceholder(title, isDark),
               )
             : _buildPlaceholder(title, isDark),
+      ),
+    );
+  }
+
+  Widget _buildImageContent(String url, String title, bool isDark) {
+    final trimmed = url.trim();
+
+    if (trimmed.startsWith('data:image')) {
+      try {
+        final commaIdx = trimmed.indexOf(',');
+        final base64Data = commaIdx != -1 ? trimmed.substring(commaIdx + 1) : trimmed;
+        final bytes = base64Decode(base64Data);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildPlaceholder(title, isDark),
+        );
+      } catch (e) {
+        debugPrint('Erro ao descodificar imagem base64: $e');
+        return _buildPlaceholder(title, isDark);
+      }
+    }
+
+    return CachedNetworkImage(
+      imageUrl: trimmed,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+          ),
+        ),
+      ),
+      errorWidget: (context, url, error) => _buildPlaceholder(title, isDark),
+    );
+  }
+
+  void _showFullScreenImage(String url, String title) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _buildImageContent(url, title, true),
+              ),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: IconButton(
+                icon: const Icon(LucideIcons.x, color: Colors.white, size: 24),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

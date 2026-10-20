@@ -120,10 +120,15 @@ class ResolucaoDataSource {
         String? formatUrl(String? path) {
           if (path == null || path.trim().isEmpty) return null;
           final trimmed = path.trim();
-          if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          if (trimmed.startsWith('http://') ||
+              trimmed.startsWith('https://') ||
+              trimmed.startsWith('data:')) {
             return trimmed;
           }
-          return _client.storage.from(_bucket).getPublicUrl(trimmed);
+          final cleanPath = trimmed.startsWith('denuncias/')
+              ? trimmed.replaceFirst('denuncias/', '')
+              : trimmed;
+          return _client.storage.from(_bucket).getPublicUrl(cleanPath);
         }
 
         final String? urlInicial = formatUrl(fotoInicialPath);
