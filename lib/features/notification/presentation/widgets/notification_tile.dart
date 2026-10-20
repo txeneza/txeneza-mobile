@@ -180,7 +180,7 @@ class NotificationTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          tempoRelativo(notificacao.dataHora),
+                          '${tempoRelativo(notificacao.dataHora)} • ${formatHoraMaputo(notificacao.dataHora)}',
                           style: TextStyle(
                             fontSize: 11,
                             color: isDark ? Colors.white38 : AppColors.grey600,

@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../../../../core/theme/colors/app_colors.dart';
 import '../../../../core/theme/colors/dark_colors.dart';
+import '../../../chatIA/data/services/gemini_service.dart';
 import '../../data/resolucao_datasource.dart';
 import '../../domain/resolucao_verificacao.dart';
 
@@ -26,6 +27,7 @@ class ResolucaoVerificationPage extends StatefulWidget {
 
 class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
   final _dataSource = ResolucaoDataSource();
+  final _geminiService = GeminiService();
   final _picker = ImagePicker();
   final _comentarioController = TextEditingController();
 
@@ -35,6 +37,9 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
   String? _errorMessage;
 
   String? _contestacaoPhotoPath;
+
+  bool _isAnalyzingAI = false;
+  String? _aiParecer;
 
   @override
   void initState() {
@@ -121,6 +126,50 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
     }
   }
 
+  Future<void> _executarAnaliseConsultivaIA() async {
+    final fotoInicial = _verificacao?.fotoInicialUrl;
+    final fotoResolucao = _verificacao?.fotoResolucaoUrl;
+
+    if (fotoResolucao == null || fotoResolucao.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Fotografia de resolução indisponível para análise visual.',
+            style: TextStyle(fontFamily: 'Geist'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAnalyzingAI = true;
+      _aiParecer = null;
+    });
+
+    try {
+      final parecer = await _geminiService.compareResolutionFromUrls(
+        initialUrl: (fotoInicial != null && fotoInicial.isNotEmpty)
+            ? fotoInicial
+            : fotoResolucao,
+        resolutionUrl: fotoResolucao,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _aiParecer = parecer;
+        _isAnalyzingAI = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _aiParecer =
+            'Não foi possível concluir a análise de IA. Pode avaliar as fotografias diretamente.';
+        _isAnalyzingAI = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -162,6 +211,8 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
                       _buildHeaderCard(isDark),
                       const SizedBox(height: 20),
                       _buildComparisonSection(isDark),
+                      const SizedBox(height: 16),
+                      _buildAIAssistanceCard(isDark),
                       const SizedBox(height: 20),
                       if (_verificacao?.statusVerificacao == StatusVerificacaoMorador.pendente) ...[
                         _buildActionSection(isDark),
@@ -455,6 +506,149 @@ class _ResolucaoVerificationPageState extends State<ResolucaoVerificationPage> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildAIAssistanceCard(bool isDark) {
+    if (_verificacao?.statusVerificacao != StatusVerificacaoMorador.pendente) {
+      return const SizedBox.shrink();
+    }
+
+    if (_isAnalyzingAI) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? DarkColors.surface : AppColors.grey50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? Colors.white24 : AppColors.grey300,
+          ),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.forestGreen,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'A Xeni está a analisar e comparar as fotografias com IA...',
+                style: TextStyle(
+                  fontFamily: 'Geist',
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : AppColors.grey800,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_aiParecer != null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark
+              ? DarkColors.surface
+              : AppColors.forestGreen.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? AppColors.forestGreen.withValues(alpha: 0.4)
+                : AppColors.forestGreen.withValues(alpha: 0.3),
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  LucideIcons.sparkles,
+                  size: 16,
+                  color: AppColors.forestGreen,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Parecer Consultivo da IA (Xeni)',
+                  style: TextStyle(
+                    fontFamily: 'Geist',
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppColors.forestGreen,
+                  ),
+                ),
+                const Spacer(),
+                InkWell(
+                  onTap: _executarAnaliseConsultivaIA,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Text(
+                      'Reanalisar',
+                      style: TextStyle(
+                        fontFamily: 'Geist',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppColors.sageGreen : AppColors.forestGreen,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _aiParecer!,
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 12.5,
+                height: 1.4,
+                color: isDark ? Colors.white.withValues(alpha: 0.87) : AppColors.grey900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Nota: Este parecer é puramente consultivo. A decisão de confirmar ou contestar (reabrir) cabe a si.',
+              style: TextStyle(
+                fontFamily: 'Geist',
+                fontSize: 10.5,
+                fontStyle: FontStyle.italic,
+                color: isDark ? Colors.white38 : AppColors.grey600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: _executarAnaliseConsultivaIA,
+      icon: const Icon(LucideIcons.sparkles, size: 16, color: AppColors.forestGreen),
+      label: const Text(
+        'Pedir Análise da IA: Comparar Imagens (Opcional)',
+        style: TextStyle(
+          fontFamily: 'Geist',
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDark ? Colors.white : AppColors.forestGreen,
+        side: BorderSide(
+          color: isDark ? Colors.white24 : AppColors.forestGreen.withValues(alpha: 0.35),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
     );
   }
 }

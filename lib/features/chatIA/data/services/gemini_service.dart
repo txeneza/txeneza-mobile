@@ -150,6 +150,77 @@ Analisa esta fotografia de resíduo urbano/ambiental e responde estritamente num
     }
   }
 
+  /// Compara visualmente a fotografia original e a fotografia de resolução para apoio consultivo ao munícipe.
+  Future<String> compareResolutionImages({
+    required Uint8List initialImageBytes,
+    required Uint8List resolutionImageBytes,
+  }) async {
+    const promptText = '''
+És um assistente ambiental e cívico do projeto Txeneza na Beira, Moçambique.
+A primeira imagem é a fotografia inicial da denúncia de resíduos.
+A segunda imagem é a fotografia de resolução enviada pela equipa municipal como comprovação de limpeza.
+Analisa visualmente e compara as duas imagens de forma concisa em Português Europeu (máximo de 3 frases):
+1. Avalia se o local aparenta estar desobstruído e limpo.
+2. Aponta se são percetíveis resíduos remanescentes.
+3. Termina com uma síntese consultiva (ex.: "Parecer consultivo: A limpeza parece ter sido realizada com sucesso." ou "Parecer consultivo: Ainda parecem existir resíduos visíveis na área.").
+''';
+
+    final contents = [
+      {
+        'role': 'user',
+        'parts': [
+          {
+            'inline_data': {
+              'mime_type': 'image/jpeg',
+              'data': base64Encode(initialImageBytes),
+            }
+          },
+          {
+            'inline_data': {
+              'mime_type': 'image/jpeg',
+              'data': base64Encode(resolutionImageBytes),
+            }
+          },
+          {'text': promptText},
+        ],
+      },
+    ];
+
+    try {
+      final response = await _generate(
+        contents,
+        systemInstruction: 'És um assistente técnico em avaliação visual de limpeza urbana. Responde com rigor, concisão e objetividade em Português Europeu.',
+      );
+      return response.trim();
+    } catch (e) {
+      debugPrint('Erro ao comparar imagens de resolução com IA: $e');
+      return 'Não foi possível efetuar a análise automática neste momento. Pode avaliar as fotografias diretamente.';
+    }
+  }
+
+  /// Descarrega as imagens via URL e executa a comparação consultiva de resolução.
+  Future<String> compareResolutionFromUrls({
+    required String initialUrl,
+    required String resolutionUrl,
+  }) async {
+    try {
+      final resInitial = await http.get(Uri.parse(initialUrl));
+      final resResolution = await http.get(Uri.parse(resolutionUrl));
+
+      if (resInitial.statusCode != 200 || resResolution.statusCode != 200) {
+        return 'Não foi possível descarregar as imagens para a análise de IA. Pode conferir diretamente as imagens acima.';
+      }
+
+      return await compareResolutionImages(
+        initialImageBytes: resInitial.bodyBytes,
+        resolutionImageBytes: resResolution.bodyBytes,
+      );
+    } catch (e) {
+      debugPrint('Erro ao contactar serviço de IA: $e');
+      return 'Análise de IA indisponível de momento. Pode proceder com a sua avaliação manual.';
+    }
+  }
+
   /// Núcleo da chamada à API, com system prompt, fallback de modelos e retry.
   /// [systemInstruction] por omissão é o prompt conversacional da Xeni; a
   /// classificação estruturada (classifyReportImage) usa um prompt próprio,
