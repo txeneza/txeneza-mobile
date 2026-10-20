@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -321,15 +322,39 @@ class _ReportCard extends StatelessWidget {
       );
     }
 
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      final file = File(url);
+    final trimmed = url.trim();
+
+    if (trimmed.startsWith('data:image')) {
+      try {
+        final commaIdx = trimmed.indexOf(',');
+        final base64Data =
+            commaIdx != -1 ? trimmed.substring(commaIdx + 1) : trimmed;
+        final bytes = base64Decode(base64Data);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: AppColors.forestGreen.withValues(alpha: 0.1),
+            child: const Center(
+              child: Icon(LucideIcons.imageOff,
+                  color: AppColors.forestGreen, size: 30),
+            ),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Erro ao descodificar imagem base64 no card: $e');
+      }
+    }
+
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      final file = File(trimmed);
       if (file.existsSync()) {
         return Image.file(file, fit: BoxFit.cover);
       }
     }
 
     return CachedNetworkImage(
-      imageUrl: url,
+      imageUrl: trimmed,
       fit: BoxFit.cover,
       memCacheWidth: 200,
       memCacheHeight: 200,

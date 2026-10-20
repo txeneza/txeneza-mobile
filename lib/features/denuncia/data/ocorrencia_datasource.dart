@@ -94,13 +94,55 @@ class OcorrenciaDataSource {
   }
 
   /// Lê as ocorrências do utilizador autenticado usando a estratégia SWR:
-  /// 1. Exibe instantaneamente a cache do Hive/SQLite em 0ms.
-  /// 2. Busca dados atualizados no Supabase em segundo plano.
-  Future<List<Occurrence>> fetchAll() async {
+  /// 1. Se [forceRefresh] for verdadeiro, consulta diretamente o Supabase e atualiza as caches locais.
+  /// 2. Caso contrário, exibe instantaneamente a cache do Hive/SQLite em 0ms e atualiza em segundo plano.
+  Future<List<Occurrence>> fetchAll({bool forceRefresh = false}) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) return [];
 
     final hiveKey = 'ocorrencias_fast_$userId';
+
+    if (forceRefresh) {
+      try {
+        final rows = await _client
+            .from('ocorrencia')
+            .select(
+              'id_ocorrencia, latitude, longitude, descricao, estado, gravidade, '
+              'categoria_residuo(nome), fotografia(caminho_ficheiro, tipo), data_hora_registo',
+            )
+            .eq('id_utilizador', userId)
+            .order('data_hora_registo', ascending: false);
+
+        final freshList = (rows as List)
+            .map((r) => _mapSupabaseToOccurrence(r as Map<String, dynamic>))
+            .toList();
+
+        final rawMaps = freshList.map((occ) {
+          final estadoStr = occ.status == OccurrenceStatus.resolved
+              ? 'resolvida'
+              : (occ.status == OccurrenceStatus.critical ? 'critica' : 'pendente');
+
+          return {
+            'id_ocorrencia': occ.id,
+            'id_utilizador': userId,
+            'latitude': occ.position.latitude,
+            'longitude': occ.position.longitude,
+            'descricao': occ.description,
+            'estado': estadoStr,
+            'gravidade': occ.status == OccurrenceStatus.critical ? 'critica' : 'normal',
+            'nome_categoria': occ.title.replaceFirst('Denúncia · ', ''),
+            'photo_url': occ.photoUrl,
+            'data_hora_registo': DateTime.now().toIso8601String(),
+          };
+        }).toList();
+
+        await SqliteService.instance.saveOcorrencias(userId, rawMaps);
+        await CacheManager.instance.putFast(hiveKey, rawMaps);
+        return freshList;
+      } catch (e) {
+        debugPrint('Erro ao forçar atualização remota de ocorrências: $e');
+      }
+    }
 
     return await CacheManager.instance.executeSWR<Occurrence>(
       loadFromLocal: () async {
@@ -161,11 +203,14 @@ class OcorrenciaDataSource {
   }
 
   Occurrence _mapRawToOccurrence(Map<String, dynamic> row) {
-    final estado = row['estado'] as String?;
-    final gravidade = row['gravidade'] as String?;
+    final estado = (row['estado'] as String?)?.toLowerCase();
+    final gravidade = (row['gravidade'] as String?)?.toLowerCase();
 
     final OccurrenceStatus status;
-    if (estado == 'resolvida') {
+    if (estado == 'resolvida' ||
+        estado == 'resolvido' ||
+        estado == 'concluido' ||
+        estado == 'concluida') {
       status = OccurrenceStatus.resolved;
     } else if (gravidade == 'critica') {
       status = OccurrenceStatus.critical;
@@ -192,11 +237,14 @@ class OcorrenciaDataSource {
   }
 
   Occurrence _mapSupabaseToOccurrence(Map<String, dynamic> row) {
-    final estado = row['estado'] as String?;
-    final gravidade = row['gravidade'] as String?;
+    final estado = (row['estado'] as String?)?.toLowerCase();
+    final gravidade = (row['gravidade'] as String?)?.toLowerCase();
 
     final OccurrenceStatus status;
-    if (estado == 'resolvida') {
+    if (estado == 'resolvida' ||
+        estado == 'resolvido' ||
+        estado == 'concluido' ||
+        estado == 'concluida') {
       status = OccurrenceStatus.resolved;
     } else if (gravidade == 'critica') {
       status = OccurrenceStatus.critical;

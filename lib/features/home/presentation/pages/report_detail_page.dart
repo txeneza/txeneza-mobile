@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -278,27 +279,7 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
-                imageUrl: ver.fotoResolucaoUrl!,
-                height: 180,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: (ctx, url) => Container(
-                  height: 180,
-                  color: isDark ? AppColors.grey800 : AppColors.grey100,
-                  child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                errorWidget: (ctx, url, err) => Container(
-                  height: 180,
-                  color: AppColors.forestGreen.withValues(alpha: 0.1),
-                  child: const Center(
-                    child: Icon(LucideIcons.imageOff,
-                        size: 36, color: AppColors.grey600),
-                  ),
-                ),
-              ),
+              child: _buildResolucaoImage(ver.fotoResolucaoUrl!, isDark),
             ),
             const SizedBox(height: 12),
           ],
@@ -346,8 +327,8 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(
+              onPressed: () async {
+                await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => ResolucaoVerificationPage(
                       occurrenceId: widget.report.id,
@@ -355,6 +336,9 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
                     ),
                   ),
                 );
+                if (mounted) {
+                  _loadVerificacao();
+                }
               },
               icon: const Icon(LucideIcons.checkCheck, size: 16),
               label: const Text(
@@ -379,6 +363,155 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
     );
   }
 
+  Widget _buildResolucaoImage(String url, bool isDark) {
+    final trimmed = url.trim();
+
+    return GestureDetector(
+      onTap: () => _showFullScreenImage(trimmed, 'Foto da Resolução'),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            height: 180,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.grey800 : AppColors.grey100,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: _buildImageWidget(trimmed, isDark),
+          ),
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.65),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.maximize2, size: 12, color: Colors.white),
+                  SizedBox(width: 4),
+                  Text(
+                    'Ver ampliado',
+                    style: TextStyle(
+                      fontFamily: 'Geist',
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageWidget(String trimmed, bool isDark) {
+    if (trimmed.startsWith('data:image')) {
+      try {
+        final commaIdx = trimmed.indexOf(',');
+        final base64Data =
+            commaIdx != -1 ? trimmed.substring(commaIdx + 1) : trimmed;
+        final bytes = base64Decode(base64Data);
+        return Image.memory(
+          bytes,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) =>
+              _errorPlaceholder(isDark),
+        );
+      } catch (e) {
+        debugPrint('Erro ao descodificar imagem base64: $e');
+        return _errorPlaceholder(isDark);
+      }
+    }
+
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      final file = File(trimmed);
+      if (file.existsSync()) {
+        return Image.file(
+          file,
+          height: 180,
+          width: double.infinity,
+          fit: BoxFit.cover,
+        );
+      }
+    }
+
+    return CachedNetworkImage(
+      imageUrl: trimmed,
+      height: 180,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      placeholder: (ctx, url) => Container(
+        height: 180,
+        color: isDark ? AppColors.grey800 : AppColors.grey100,
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      errorWidget: (ctx, url, err) => _errorPlaceholder(isDark),
+    );
+  }
+
+  Widget _errorPlaceholder(bool isDark) {
+    return Container(
+      height: 180,
+      color: AppColors.forestGreen.withValues(alpha: 0.1),
+      child: const Center(
+        child: Icon(LucideIcons.imageOff, size: 36, color: AppColors.grey600),
+      ),
+    );
+  }
+
+  void _showFullScreenImage(String url, String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: _buildImageWidget(url, isDark),
+              ),
+            ),
+            Positioned(
+              top: 10,
+              right: 10,
+              child: GestureDetector(
+                onTap: () => Navigator.of(ctx).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 20),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _photo(bool isDark) {
     final url = widget.report.photoUrl;
     if (url == null || url.isEmpty) {
@@ -390,15 +523,29 @@ class _ReportDetailPageState extends State<ReportDetailPage> {
       );
     }
 
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      final file = File(url);
+    final trimmed = url.trim();
+
+    if (trimmed.startsWith('data:image')) {
+      try {
+        final commaIdx = trimmed.indexOf(',');
+        final base64Data =
+            commaIdx != -1 ? trimmed.substring(commaIdx + 1) : trimmed;
+        final bytes = base64Decode(base64Data);
+        return Image.memory(bytes, fit: BoxFit.cover);
+      } catch (e) {
+        debugPrint('Erro ao descodificar imagem da ocorrencia: $e');
+      }
+    }
+
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+      final file = File(trimmed);
       if (file.existsSync()) {
         return Image.file(file, fit: BoxFit.cover);
       }
     }
 
     return CachedNetworkImage(
-      imageUrl: url,
+      imageUrl: trimmed,
       fit: BoxFit.cover,
       placeholder: (context, url) => Container(
         color: isDark ? AppColors.grey800 : AppColors.grey200,

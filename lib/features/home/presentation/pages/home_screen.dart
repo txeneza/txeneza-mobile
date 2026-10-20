@@ -62,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final _ocorrenciaDataSource = OcorrenciaDataSource();
   final _denunciaQueue = DenunciaQueue();
   List<Occurrence> _occurrences = [];
+  RealtimeChannel? _ocorrenciasChannel;
 
   // Notificações: contagem de não lidas para o badge do sino, actualizada
   // em tempo real via Supabase Realtime.
@@ -75,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _checkInitialConnectivity();
     _loadPontosRecolha();
     _loadOccurrences();
+    _subscribeToOcorrencias();
     _flushQueue();
     _recuperarFotoPerdida();
     _loadUnreadCount();
@@ -83,6 +85,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _connectivitySubscription = NetworkInfo().onConnectivityChanged.listen((bool isOnline) {
       _updateConnectionStatus(isOnline);
     });
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription.cancel();
+    if (_ocorrenciasChannel != null) {
+      Supabase.instance.client.removeChannel(_ocorrenciasChannel!);
+    }
+    if (_notificacaoChannel != null) {
+      Supabase.instance.client.removeChannel(_notificacaoChannel!);
+    }
+    super.dispose();
   }
 
   /// Lê as notificações e actualiza a contagem de não lidas mostrada no
@@ -118,6 +132,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     )..subscribe();
   }
 
+  /// Subscreve alterações em tempo real nas tabelas "ocorrencia" e "verificacao_resolucao".
+  /// Sempre que houver uma resolução na plataforma web ou no dispositivo móvel,
+  /// o mapa e as contagens do painel inferior refletem a alteração em tempo real.
+  void _subscribeToOcorrencias() {
+    try {
+      _ocorrenciasChannel = Supabase.instance.client
+          .channel('realtime_mapa_ocorrencias_home')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'ocorrencia',
+            callback: (payload) {
+              debugPrint('Realtime mapa: evento em ocorrencia (${payload.eventType})');
+              _loadOccurrences(forceRefresh: true);
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'verificacao_resolucao',
+            callback: (payload) {
+              debugPrint('Realtime mapa: evento em verificacao_resolucao (${payload.eventType})');
+              _loadOccurrences(forceRefresh: true);
+            },
+          );
+      _ocorrenciasChannel?.subscribe();
+    } catch (e) {
+      debugPrint('Erro ao subscrever Realtime de ocorrencias no mapa: $e');
+    }
+  }
+
   Future<void> _onBellTap() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const NotificationsPage()),
@@ -142,9 +187,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   /// Carrega as ocorrências reais do Supabase. Sem rede, mantém a última lista.
-  Future<void> _loadOccurrences() async {
+  Future<void> _loadOccurrences({bool forceRefresh = false}) async {
     try {
-      final occ = await _ocorrenciaDataSource.fetchAll();
+      final occ = await _ocorrenciaDataSource.fetchAll(forceRefresh: forceRefresh);
       if (!mounted) return;
       setState(() => _occurrences = occ);
     } catch (e) {
